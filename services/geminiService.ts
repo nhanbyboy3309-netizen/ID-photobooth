@@ -87,7 +87,8 @@ RULE:
 - DO NOT re-detect or reinterpret facial geometry.
 - Treat the face as LOCKED.
 - Do not make changes arbitrarily. Only make changes according to the selected option.
-
+- Do not make changes arbitrarily. Only make changes according to the selected option.
+- Do not make changes arbitrarily. Only make changes according to the selected option.
 If face is missing or incomplete:
 - Output original image unchanged.
 
