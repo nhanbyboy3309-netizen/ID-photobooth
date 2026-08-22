@@ -1,0 +1,10 @@
+{
+  "name": "ID Photo Booth Pro",
+  "description": "Ứng dụng chụp ảnh thẻ chuyên nghiệp (3x4, 4x6) với tính năng tách nền, thay trang phục và dàn trang in ấn.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
