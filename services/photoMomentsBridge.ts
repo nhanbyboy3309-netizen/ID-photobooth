@@ -6,10 +6,12 @@
 const PHOTO_MOMENTS_GAS_URL = "https://script.google.com/macros/s/AKfycbxhpSv6qg4xyaQ6kh6yPa20x9pe2ldDBBM8euSJhxU_y9x70Ud1C2-CTdl57vUNKEhd/exec";
 
 // Phải khớp với EXECUTION_API_KEY trong photo-moments/src/pages/Cart.tsx.
-// Lấy từ biến môi trường (.env.local — không commit lên git) thay vì hardcode
-// thẳng trong source, vì file này chạy ở client và sẽ bị nhúng vào bundle công
-// khai; hardcode trong source khiến key hiện rõ khi grep repo/git history.
-export const SERVICE_ENTRY_API_KEY = import.meta.env.VITE_SERVICE_ENTRY_API_KEY || "";
+// Chuỗi ngẫu nhiên (KHÔNG phải Google API key thật) hardcode trực tiếp vì AI Studio
+// Secrets không bơm biến VITE_*/REACT_APP_* vào bước build (chỉ dùng được cho biến
+// đọc lúc runtime như GEMINI_API_KEY) — import.meta.env.VITE_SERVICE_ENTRY_API_KEY
+// luôn ra rỗng trên bản deploy thật, dẫn tới lỗi "sai apiKey". An toàn để hardcode vì
+// đây không phải credential thật nên Google sẽ không tự thu hồi khi lộ trong repo/bundle.
+export const SERVICE_ENTRY_API_KEY = "428fb24038f3c73503f7342332431fdab5cbb94dcaefeabf";
 
 export interface ServiceSessionToken {
   orderId: string;
