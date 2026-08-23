@@ -10,6 +10,7 @@ import CaptureOverlay from './CaptureOverlay';
 import CaptureControls from './CaptureControls';
 import MobileCameraLink from './MobileCameraLink';
 import { t } from '../services/i18n';
+import { pickPreferredVoice } from '../services/voiceService';
 
 // Polyfill definitions for ImageCapture API
 interface PhotoCapabilities { redEyeReduction: string; imageHeight: any; imageWidth: any; fillLightMode: string[]; }
@@ -95,7 +96,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, selectedSize, 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = config.language === 'en' ? 'en-US' : 'vi-VN'; 
       const voices = window.speechSynthesis.getVoices();
-      const voice = voices.find(v => v.lang.startsWith(utterance.lang));
+      const voice = pickPreferredVoice(voices, utterance.lang);
       if (voice) utterance.voice = voice;
       window.speechSynthesis.speak(utterance);
       lastSpokenRef.current = text;

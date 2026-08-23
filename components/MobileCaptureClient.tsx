@@ -4,6 +4,7 @@ import { PhotoSize, AppConfig } from '../types';
 import { analyzeIDPhotoFrame } from '../services/geminiService';
 import { savePhotoToCloud } from '../services/databaseService';
 import { t } from '../services/i18n';
+import { pickPreferredVoice } from '../services/voiceService';
 
 interface MobileCaptureClientProps {
   sessionId: string;
@@ -45,7 +46,7 @@ const MobileCaptureClient: React.FC<MobileCaptureClientProps> = ({ sessionId, co
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = config.language === 'en' ? 'en-US' : 'vi-VN';
     const voices = window.speechSynthesis.getVoices();
-    const voice = voices.find(v => v.lang.startsWith(utterance.lang));
+    const voice = pickPreferredVoice(voices, utterance.lang);
     if (voice) utterance.voice = voice;
     window.speechSynthesis.speak(utterance);
     lastSpokenRef.current = text;
