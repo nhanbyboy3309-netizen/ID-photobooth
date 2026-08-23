@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AppConfig, AIModelType, AIModelSelectionMode } from '../types';
+import { InputGroup, baseInputClass } from './AdminShared';
 
 interface AdminAIModelTabProps {
   form: AppConfig;
@@ -7,6 +8,7 @@ interface AdminAIModelTabProps {
 }
 
 const AdminAIModelTab: React.FC<AdminAIModelTabProps> = ({ form, setForm }) => {
+  const [showApiKey, setShowApiKey] = useState(false);
   const currentMode: AIModelSelectionMode = form.aiModelMode || 'auto';
   const manualModel: AIModelType = form.aiManualModel || 'gemini-3.1-flash-image';
   const simpleModel: AIModelType = form.aiSimpleModel || 'gemini-3.1-flash-image';
@@ -34,6 +36,40 @@ const AdminAIModelTab: React.FC<AdminAIModelTabProps> = ({ form, setForm }) => {
           <p className="text-xs text-blue-100 max-w-2xl leading-relaxed">
             Tự động chuyển đổi giữa <strong className="text-white">gemini-3.1-flash-image</strong> (mặc định cho xử lý phông nền, màu sắc) và <strong className="text-white">gemini-3-pro-image</strong> (cho xử lý trang phục, trang điểm & chi tiết phức tạp). Admin có thể chọn chế độ tự động thông minh hoặc gán cố định thủ công.
           </p>
+        </div>
+      </div>
+
+      {/* API Key */}
+      <div className="bg-white dark:bg-gray-900 p-6 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
+        <div>
+          <h3 className="text-lg font-black tracking-tight flex items-center gap-2">
+            <span>🔑</span> Gemini API Key
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Dán key từ <span className="font-mono">aistudio.google.com/apikey</span>. Để trống thì hệ thống dùng key mặc định cấu hình trên server (biến môi trường <span className="font-mono">GEMINI_API_KEY</span>).
+          </p>
+        </div>
+        <InputGroup label="API KEY" icon="🔑">
+          <div className="relative">
+            <input
+              type={showApiKey ? 'text' : 'password'}
+              value={form.geminiApiKey || ''}
+              onChange={(e) => updateConfig('geminiApiKey', e.target.value)}
+              placeholder="AIzaSy... hoặc AQ...."
+              className={`${baseInputClass} pl-12 pr-12 font-mono text-sm`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowApiKey(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-500 transition-colors text-lg"
+              title={showApiKey ? 'Ẩn key' : 'Hiện key'}
+            >
+              {showApiKey ? '🙈' : '👁️'}
+            </button>
+          </div>
+        </InputGroup>
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-3 text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+          ⚠️ Key được lưu cùng cấu hình chung (đồng bộ Google Sheet nếu bật Cloud Sync ở tab General) — chỉ dùng trên thiết bị/tài khoản bạn tin tưởng.
         </div>
       </div>
 

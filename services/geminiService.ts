@@ -1,4 +1,5 @@
 import { BackgroundType, BeautySettings, PhotoSize } from "../types";
+import { getConfig } from "./configService";
 
 /* =========================================================
    DETERMINE APPROPRIATE AI MODEL
@@ -88,10 +89,11 @@ export const analyzeIDPhotoFrame = async (
   faceDetected: boolean;
 }> => {
   try {
+    const apiKey = getConfig().geminiApiKey;
     const response = await fetch("/api/gemini/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ base64Frame })
+      body: JSON.stringify({ base64Frame, apiKey: apiKey || undefined })
     });
 
     if (!response.ok) {
@@ -166,10 +168,11 @@ Edit strictly below the jawline — the jawline is an absolute boundary. Zero fe
 OUTPUT: PNG, high quality, base64, no text, no metadata, no explanation.`;
 
   try {
+    const apiKey = getConfig().geminiApiKey;
     const response = await fetch("/api/gemini/process", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageBase64, systemPrompt, model: targetModel })
+      body: JSON.stringify({ imageBase64, systemPrompt, model: targetModel, apiKey: apiKey || undefined })
     });
 
     if (!response.ok) {

@@ -16,8 +16,8 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
-  const getAI = () => {
-    const apiKey = process.env.GEMINI_API_KEY;
+  const getAI = (clientApiKey?: string) => {
+    const apiKey = clientApiKey || process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY_MISSING");
     }
@@ -45,10 +45,10 @@ async function startServer() {
 
   app.post("/api/gemini/analyze", async (req, res) => {
     try {
-      const { base64Frame } = req.body;
+      const { base64Frame, apiKey } = req.body;
       if (!base64Frame) return res.status(400).json({ error: "Missing image" });
 
-      const ai = getAI();
+      const ai = getAI(apiKey);
       const cleanBase64 = base64Frame.replace(/^data:image\/\w+;base64,/, "");
 
       const response = await ai.models.generateContent({
@@ -79,13 +79,13 @@ Tiêu chí: mặt nhìn thẳng, mắt mở, miệng đóng, đủ sáng, không
 
   app.post("/api/gemini/process", async (req, res) => {
     try {
-      const { imageBase64, systemPrompt, model } = req.body;
+      const { imageBase64, systemPrompt, model, apiKey } = req.body;
       if (!imageBase64 || !systemPrompt) return res.status(400).json({ error: "Missing data" });
 
       const targetModel = model || "gemini-3.1-flash-image";
       console.log(`[Gemini Process] Running image generation with model: ${targetModel}`);
 
-      const ai = getAI();
+      const ai = getAI(apiKey);
       const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
 
       const response = await ai.models.generateContent({

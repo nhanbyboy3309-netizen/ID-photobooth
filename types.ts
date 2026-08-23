@@ -141,6 +141,7 @@ export interface AppConfig {
   printShowQr?: boolean;   // default true
 
   // AI Model Configurations
+  geminiApiKey?: string; // Ghi đè GEMINI_API_KEY trên server nếu có; để trống thì server dùng biến môi trường
   aiModelMode?: AIModelSelectionMode; // 'auto' | 'manual'
   aiManualModel?: AIModelType; // default 'gemini-3.1-flash-image'
   aiSimpleModel?: AIModelType; // default 'gemini-3.1-flash-image'
