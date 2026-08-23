@@ -6,6 +6,7 @@ import { t } from '../services/i18n';
 interface PrintSidebarProps {
   photoId: string | null;
   isSaving: boolean;
+  cloudSaveFailed?: boolean;
   sheetImages: string[];
   qrUrl: string;
   settings: PhotoSettings;
@@ -16,7 +17,7 @@ interface PrintSidebarProps {
 }
 
 const PrintSidebar: React.FC<PrintSidebarProps> = ({
-  photoId, isSaving, sheetImages, qrUrl, settings, config, onPrint, onDownload, onHome
+  photoId, isSaving, cloudSaveFailed, sheetImages, qrUrl, settings, config, onPrint, onDownload, onHome
 }) => {
   return (
     <div className="w-full md:w-80 bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-xl flex flex-col gap-4 md:gap-6 md:h-fit md:sticky md:top-6">
@@ -71,8 +72,13 @@ const PrintSidebar: React.FC<PrintSidebarProps> = ({
                         </div>
                     )}
                </div>
+           ) : cloudSaveFailed ? (
+               <div className="w-16 h-16 md:w-28 md:h-28 flex flex-col items-center justify-center gap-1 text-center text-red-500 bg-red-50 dark:bg-red-900/20 rounded-xl p-1.5">
+                   <span className="text-lg leading-none">⚠️</span>
+                   <span className="text-[8px] md:text-[9px] font-bold leading-tight">Lỗi lưu cloud — vẫn in/tải được</span>
+               </div>
            ) : (
-               <div className="w-16 h-16 md:w-28 md:h-28 flex items-center justify-center text-xs text-gray-400 bg-gray-100 dark:bg-gray-600 rounded">...</div>
+               <div className="w-16 h-16 md:w-28 md:h-28 flex items-center justify-center text-xs text-gray-400 bg-gray-100 dark:bg-gray-600 rounded animate-pulse">...</div>
            )}
         </div>
       </div>

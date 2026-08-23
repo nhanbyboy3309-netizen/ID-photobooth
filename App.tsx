@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import PhotoBooth from './components/PhotoBooth';
+import PhotoBooth, { ServiceSession } from './components/PhotoBooth';
 import AdminDashboard from './components/AdminDashboard';
 import PhotoViewer from './components/PhotoViewer';
 import MobileCaptureClient from './components/MobileCaptureClient';
@@ -8,6 +8,7 @@ import { AppConfig, PhotoSize } from './types';
 import { getConfig, applyTheme, applyThemeMode, updateFavicon, saveConfig } from './services/configService';
 import { getAppConfigFromCloud } from './services/databaseService';
 import { t } from './services/i18n';
+import { decodeServiceToken, verifyOrderPaid, SERVICE_ENTRY_API_KEY } from './services/photoMomentsBridge';
 
 const App: React.FC = () => {
   const [isStarted, setIsStarted] = useState(false);
@@ -19,8 +20,13 @@ const App: React.FC = () => {
   const [viewerPhotoId, setViewerPhotoId] = useState<string | null>(null);
   const [mobileSessionId, setMobileSessionId] = useState<string | null>(null);
   const [mobileInitialSize, setMobileInitialSize] = useState<PhotoSize>(PhotoSize.SIZE_4X6);
-  
+
   const [boothKey, setBoothKey] = useState(0);
+
+  // Đơn dịch vụ chuyển sang từ photo-moments (?mode=service&orderId=&token=&apiKey=)
+  const [serviceEntryStatus, setServiceEntryStatus] = useState<'idle' | 'verifying' | 'ready' | 'error'>('idle');
+  const [serviceEntryError, setServiceEntryError] = useState('');
+  const [serviceSession, setServiceSession] = useState<ServiceSession | null>(null);
 
   useEffect(() => {
     const loadedConfig = getConfig();
@@ -65,6 +71,75 @@ const App: React.FC = () => {
             setMobileInitialSize(sizeParam);
         }
     }
+
+    // Đơn dịch vụ đã thanh toán từ photo-moments — xác minh rồi vào thẳng bước chụp.
+    // Hỗ trợ 2 dạng URL, cả 2 đều BẮT BUỘC verifyOrderPaid trước khi cho vào chụp:
+    //  1) ?mode=service&orderId=&token=&apiKey=  (chuẩn, dùng từ photo-moments Cart.tsx)
+    //  2) ?orderId=&size=&qty=                   (dạng đơn giản — "integration mode" cũ,
+    //     trước đây KHÔNG xác minh thanh toán, đây là bản xây lại có xác minh)
+    const mode = params.get('mode');
+    const rawOrderId = params.get('orderId');
+
+    if (mode === 'service' || rawOrderId) {
+        const tokenParam = params.get('token');
+        const apiKeyParam = params.get('apiKey');
+
+        const runVerification = async () => {
+            setServiceEntryStatus('verifying');
+
+            let orderIdParam: string | null;
+            let sizeParam: string;
+            let qtyParam: number;
+
+            if (mode === 'service') {
+                // Dạng chuẩn: bắt buộc apiKey + token hợp lệ.
+                if (apiKeyParam !== SERVICE_ENTRY_API_KEY) {
+                    setServiceEntryError('Liên kết không hợp lệ (sai apiKey).');
+                    setServiceEntryStatus('error');
+                    return;
+                }
+                if (!rawOrderId || !tokenParam) {
+                    setServiceEntryError('Liên kết thiếu thông tin đơn hàng.');
+                    setServiceEntryStatus('error');
+                    return;
+                }
+                const decoded = decodeServiceToken(tokenParam);
+                if (!decoded || decoded.orderId !== rawOrderId) {
+                    setServiceEntryError('Liên kết không hợp lệ (token sai định dạng).');
+                    setServiceEntryStatus('error');
+                    return;
+                }
+                orderIdParam = rawOrderId;
+                sizeParam = decoded.size;
+                qtyParam = decoded.qty || 4;
+            } else {
+                // Dạng đơn giản: chỉ có orderId/size/qty trực tiếp trên URL.
+                orderIdParam = rawOrderId;
+                sizeParam = params.get('size') || '4x6';
+                qtyParam = params.get('qty') ? parseInt(params.get('qty')!, 10) : 4;
+            }
+
+            // Bước xác minh THẬT — đây là chỗ bản cũ bị thiếu, đã sửa: dù vào theo
+            // dạng URL nào cũng phải xác nhận đơn hàng đã thanh toán mới cho chụp.
+            const isPaid = await verifyOrderPaid(orderIdParam!);
+            if (!isPaid) {
+                setServiceEntryError(`Không tìm thấy đơn hàng ${orderIdParam} đã thanh toán. Vui lòng liên hệ nhân viên hỗ trợ.`);
+                setServiceEntryStatus('error');
+                return;
+            }
+
+            const size = Object.values(PhotoSize).includes(sizeParam as PhotoSize)
+                ? (sizeParam as PhotoSize)
+                : PhotoSize.SIZE_4X6;
+
+            setServiceSession({ size, quantity: qtyParam || 4 });
+            setServiceEntryStatus('ready');
+            setBoothKey(prev => prev + 1);
+            setIsStarted(true);
+        };
+
+        runVerification();
+    }
   }, []);
 
   const handleStart = () => {
@@ -87,6 +162,29 @@ const App: React.FC = () => {
       alert('Sai mật khẩu!');
     }
   };
+
+  if (serviceEntryStatus === 'verifying') {
+      return (
+        <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-slate-800 to-black flex items-center justify-center p-6">
+          <div className="text-center space-y-4">
+            <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p className="text-slate-300 font-medium">Đang xác minh đơn hàng...</p>
+          </div>
+        </div>
+      );
+  }
+
+  if (serviceEntryStatus === 'error') {
+      return (
+        <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-slate-800 to-black flex items-center justify-center p-6">
+          <div className="text-center space-y-4 max-w-md bg-white/5 border border-white/10 rounded-2xl p-8">
+            <div className="w-14 h-14 bg-red-500/20 text-red-400 rounded-full flex items-center justify-center mx-auto text-2xl">!</div>
+            <h2 className="text-xl font-bold text-white">Không thể mở phiên chụp</h2>
+            <p className="text-slate-400 text-sm">{serviceEntryError}</p>
+          </div>
+        </div>
+      );
+  }
 
   if (mobileSessionId) {
       return <MobileCaptureClient sessionId={mobileSessionId} config={config} initialSize={mobileInitialSize} />;
@@ -168,7 +266,7 @@ const App: React.FC = () => {
 
   return (
     <div className="h-full w-full font-sans flex flex-col overflow-hidden bg-white dark:bg-gray-900">
-      <PhotoBooth key={boothKey} config={config} onHome={handleHome} />
+      <PhotoBooth key={boothKey} config={config} onHome={handleHome} serviceSession={serviceSession} />
     </div>
   );
 };

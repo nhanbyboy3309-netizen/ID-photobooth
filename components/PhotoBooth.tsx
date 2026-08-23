@@ -6,16 +6,26 @@ import ImageEditor from './ImageEditor';
 import PrintPreview from './PrintPreview';
 import { AppStep, BackgroundType, PhotoSettings, PhotoSize, SavedPhoto, AppConfig, SkinToneType } from '../types';
 
+export interface ServiceSession {
+  size: PhotoSize;
+  quantity: number;
+}
+
 interface PhotoBoothProps {
   onSaveToGallery?: () => void;
   initialPhoto?: SavedPhoto | null;
   onHome: () => void;
   config: AppConfig;
+  // Đơn dịch vụ đã xác minh "paid" từ photo-moments — bỏ qua màn hình
+  // chọn khổ/nền/số lượng thủ công, vào thẳng bước chụp với cấu hình đã mua.
+  serviceSession?: ServiceSession | null;
 }
 
-const PhotoBooth: React.FC<PhotoBoothProps> = ({ onSaveToGallery, initialPhoto, onHome, config }) => {
-  // If loading from gallery, skip config and capture, go to print
-  const [step, setStep] = useState<AppStep>(initialPhoto ? AppStep.PRINT : AppStep.CONFIG);
+const PhotoBooth: React.FC<PhotoBoothProps> = ({ onSaveToGallery, initialPhoto, onHome, config, serviceSession }) => {
+  // Nếu có serviceSession, bỏ qua CONFIG luôn vào CAPTURE. Nếu load từ gallery, vào thẳng PRINT.
+  const [step, setStep] = useState<AppStep>(
+    initialPhoto ? AppStep.PRINT : (serviceSession ? AppStep.CAPTURE : AppStep.CONFIG)
+  );
   
   // Data State
   const [currentPhotoId, setCurrentPhotoId] = useState<string>(initialPhoto ? initialPhoto.id : '');
@@ -26,7 +36,7 @@ const PhotoBooth: React.FC<PhotoBoothProps> = ({ onSaveToGallery, initialPhoto, 
   
   // Settings State
   const [settings, setSettings] = useState<PhotoSettings>(initialPhoto ? initialPhoto.settings : {
-    size: PhotoSize.SIZE_4X6, // Default
+    size: serviceSession?.size || PhotoSize.SIZE_4X6, // Default
     background: BackgroundType.WHITE,
     backgroundHex: '#ffffff', // Default hex
     clothingPrompt: undefined,
@@ -54,7 +64,7 @@ const PhotoBooth: React.FC<PhotoBoothProps> = ({ onSaveToGallery, initialPhoto, 
       contourIntensity: 0,
       blushIntensity: 0
     },
-    printQuantity: 4,
+    printQuantity: serviceSession?.quantity || 4,
     phoneNumber: config.contactZalo // Default phone from config
   });
 
@@ -101,7 +111,8 @@ const PhotoBooth: React.FC<PhotoBoothProps> = ({ onSaveToGallery, initialPhoto, 
     setBaseImage('');
     setProcessedImage('');
     setEditHistory([]);
-    setStep(AppStep.CONFIG); 
+    // Đơn dịch vụ đã khoá khổ/số lượng theo gói đã mua — không cho chọn lại từ đầu.
+    setStep(serviceSession ? AppStep.CAPTURE : AppStep.CONFIG);
   };
 
   const handleRetake = () => {

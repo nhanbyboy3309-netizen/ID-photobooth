@@ -27,6 +27,7 @@ const PrintPreview: React.FC<PrintPreviewProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [realPhotoId, setRealPhotoId] = useState<string | null>(passedPhotoId);
   const [qrUrl, setQrUrl] = useState<string>('');
+  const [cloudSaveFailed, setCloudSaveFailed] = useState(false);
   const [sheetImages, setSheetImages] = useState<string[]>([]);
   const [printImages, setPrintImages] = useState<string[]>([]); // New state for print-optimized images
 
@@ -93,7 +94,8 @@ const PrintPreview: React.FC<PrintPreviewProps> = ({
   };
 
   useEffect(() => {
-     if (!qrUrl) return; 
+     // Không chờ qrUrl (lưu cloud) — khách cần in/tải ảnh được ngay cả khi
+     // lưu cloud thất bại hoặc chậm. QR sẽ tự thêm vào khi qrUrl có sau.
      (async () => {
          try {
              const [p, l, q] = await Promise.all([
@@ -125,10 +127,12 @@ const PrintPreview: React.FC<PrintPreviewProps> = ({
         timestamp: Date.now(), 
         settings 
       });
-      if (id) { 
-        setRealPhotoId(id); 
-        const v = `${window.location.href.split('?')[0]}?photoId=${id}`; 
-        setQrUrl(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(v)}&ecc=H`); 
+      if (id) {
+        setRealPhotoId(id);
+        const v = `${window.location.href.split('?')[0]}?photoId=${id}`;
+        setQrUrl(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(v)}&ecc=H`);
+      } else {
+        setCloudSaveFailed(true);
       }
       setIsSaving(false);
     })();
@@ -156,9 +160,10 @@ const PrintPreview: React.FC<PrintPreviewProps> = ({
         
         {/* Controls Area (Stacked at bottom on mobile) */}
         <div className="w-full md:w-80 shrink-0">
-            <PrintSidebar 
+            <PrintSidebar
                 photoId={realPhotoId}
                 isSaving={isSaving}
+                cloudSaveFailed={cloudSaveFailed}
                 sheetImages={sheetImages}
                 qrUrl={qrUrl}
                 settings={settings}

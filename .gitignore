@@ -13,6 +13,9 @@ dist-ssr
 *.local
 .env
 .env.local
+.env.production
+.env.*.local
+!.env.example
 
 # AI Studio prompt/chat history migration dump (not app code, not needed to run the app)
 migrated_prompt_history/
