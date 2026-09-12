@@ -96,7 +96,12 @@ Tiêu chí: mặt nhìn thẳng, mắt mở, miệng đóng, đủ sáng, không
             { inlineData: { mimeType: "image/png", data: cleanBase64 } },
             { text: systemPrompt }
           ]
-        }]
+        }],
+        config: {
+          // Mặc định model chỉ xuất 1K nếu không set — 2K sắc nét hơn hẳn cho
+          // ảnh in 300dpi mà chưa quá nặng/chậm như 4K.
+          imageConfig: { imageSize: "2K" }
+        }
       });
 
       const parts = response.candidates?.[0]?.content?.parts;

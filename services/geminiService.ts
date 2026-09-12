@@ -160,6 +160,7 @@ ALLOWED — cosmetic surface edits (color/texture only, never geometry; this IS 
 - Hair: tidy the existing hairstyle only, volume ${safeBeauty.hairVolume || 0}/100, color=${safeBeauty.hairColor || "ORIGINAL"}. Do not invent a new hairstyle.
 - Posture: global rotation/translation/uniform scale only, no local warping.
 - Background: mode=${backgroundMode}, color=${backgroundColor}. Flat solid color — no gradient, shadow, or blur.
+- Sharpness: increase overall image clarity and fine detail — crisp eyes, eyebrows, eyelashes, individual hair strands, fabric texture, and edge definition. Remove any camera blur/softness. Do not sharpen past the point of adding noise or halo artifacts, and do not let this counteract the skin smoothing above — sharpen detail elsewhere, keep smoothed skin areas smooth.
 Lock facial pixels once Phase 1 is complete.
 
 PHASE 2 — Clothing only, face LOCKED: ${clothingPrompt ? `enabled, prompt="${clothingPrompt}"` : "disabled"}.
