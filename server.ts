@@ -49,6 +49,7 @@ async function startServer() {
       if (!base64Frame) return res.status(400).json({ error: "Missing image" });
 
       const ai = getAI(apiKey);
+      const mimeType = base64Frame.match(/^data:(image\/\w+);base64,/)?.[1] || "image/png";
       const cleanBase64 = base64Frame.replace(/^data:image\/\w+;base64,/, "");
 
       const response = await ai.models.generateContent({
@@ -56,7 +57,7 @@ async function startServer() {
         contents: [{
           role: "user",
           parts: [
-            { inlineData: { mimeType: "image/png", data: cleanBase64 } },
+            { inlineData: { mimeType, data: cleanBase64 } },
             { text: `Phân tích ảnh thẻ sinh trắc học để HƯỚNG DẪN người dùng (không chỉnh sửa ảnh).
 Tiêu chí: mặt nhìn thẳng, mắt mở, miệng đóng, đủ sáng, không bóng đổ mạnh, một khuôn mặt duy nhất.
 "instruction": câu ngắn tiếng Việt ra lệnh chỉnh tư thế (VD: "Nâng cằm lên", "Nhìn thẳng camera").` }
@@ -86,6 +87,7 @@ Tiêu chí: mặt nhìn thẳng, mắt mở, miệng đóng, đủ sáng, không
       console.log(`[Gemini Process] Running image generation with model: ${targetModel}`);
 
       const ai = getAI(apiKey);
+      const mimeType = imageBase64.match(/^data:(image\/\w+);base64,/)?.[1] || "image/png";
       const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
 
       const response = await ai.models.generateContent({
@@ -93,7 +95,7 @@ Tiêu chí: mặt nhìn thẳng, mắt mở, miệng đóng, đủ sáng, không
         contents: [{
           role: "user",
           parts: [
-            { inlineData: { mimeType: "image/png", data: cleanBase64 } },
+            { inlineData: { mimeType, data: cleanBase64 } },
             { text: systemPrompt }
           ]
         }],

@@ -153,6 +153,8 @@ export const processIDPhoto = async (
 
 IDENTITY LOCK — hard rule, always: face shape, bone structure, proportions, and the exact position/size/shape of eyes, nose, mouth, eyebrows, and ears must stay identical to the original. No reshaping, resizing, or repositioning of any facial feature. Never add or remove moles, freckles, scars, or birthmarks. Never invent skin texture or interpret noise as facial features. Always compare against the original image; do not re-detect or reinterpret geometry. If no face is found or it is incomplete, output the original image unchanged. Apply ONLY the edits specified below, nothing else.
 
+MANDATORY FIRST STEP — RELIGHT THE SUBJECT: the input photo may have colored/directional lighting (sunset, tungsten indoor light, window light, shade). Before anything else, re-render the subject (face, neck, hair, clothing) as if photographed today in a professional ID-photo studio: flat, neutral white (6500K) light from the front, no color cast, no warm/cool tint, no directional shadow on one side of the face. This is a mandatory global relight/white-balance pass, applied even if no other edit is requested — it changes color and light only, identity/geometry/pose stay exactly as in IDENTITY LOCK above.
+
 ALLOWED — cosmetic surface edits (color/texture only, never geometry; this IS the requested beautification, apply it at the given intensity, not just minimally):
 - Skin: smoothing ${smoothSkin}/100, blemish cleanup ${blemish}/100 — subtractive retouching of existing texture, preserve identity marks, no new texture/pores.
 - Makeup: lip color=${safeBeauty.lipstickColor || "NONE"} intensity ${safeBeauty.lipstickIntensity || 0}/100; blush intensity ${safeBeauty.blushIntensity || 0}/100; contour (shading only) ${contour}/100.
