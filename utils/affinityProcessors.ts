@@ -189,6 +189,74 @@ export function healSpot(
 }
 
 /**
+ * Builds a subject/background mask via flood fill from the image border.
+ * The AI always renders the background as a flat solid color, so every true
+ * background pixel is reachable from the border through a chain of other
+ * background-colored pixels. This is far more robust than a plain per-pixel
+ * color-distance test: a subject pixel that merely happens to be a similar
+ * color (a white collar near a white background, pale skin near a light
+ * background) is never connected to the border through background-colored
+ * pixels alone, so it stays correctly marked as subject.
+ * Returns a Uint8Array (1 = subject, 0 = background) sized width*height.
+ */
+function computeSubjectMask(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  bgR: number,
+  bgG: number,
+  bgB: number,
+  threshold: number
+): Uint8Array {
+  const size = width * height;
+  const isBackground = new Uint8Array(size);
+  const visited = new Uint8Array(size);
+  const stack: number[] = [];
+
+  const matchesBg = (idx: number) => {
+    const o = idx * 4;
+    const dr = data[o] - bgR;
+    const dg = data[o + 1] - bgG;
+    const db = data[o + 2] - bgB;
+    return Math.sqrt(dr * dr + dg * dg + db * db) < threshold;
+  };
+
+  const visit = (x: number, y: number) => {
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+    const idx = y * width + x;
+    if (visited[idx]) return;
+    visited[idx] = 1;
+    if (matchesBg(idx)) {
+      isBackground[idx] = 1;
+      stack.push(idx);
+    }
+  };
+
+  for (let x = 0; x < width; x++) {
+    visit(x, 0);
+    visit(x, height - 1);
+  }
+  for (let y = 0; y < height; y++) {
+    visit(0, y);
+    visit(width - 1, y);
+  }
+
+  while (stack.length > 0) {
+    const idx = stack.pop()!;
+    const x = idx % width;
+    const y = (idx / width) | 0;
+    visit(x - 1, y);
+    visit(x + 1, y);
+    visit(x, y - 1);
+    visit(x, y + 1);
+  }
+
+  const subjectMask = new Uint8Array(size);
+  for (let i = 0; i < size; i++) subjectMask[i] = isBackground[i] ? 0 : 1;
+  return subjectMask;
+}
+
+/**
  * Tonal-range weights for a 0-1 luminance value, used to blend Highlights/
  * Shadows/Midtones adjustments smoothly (no hard cutoffs/banding between
  * ranges). Shadows peak at luminance 0, Highlights peak at 1, Midtones peak
@@ -241,12 +309,16 @@ export const applyClientAdjustments = (
       smoothData = bilateralFilter(data, canvas.width, canvas.height, smoothSkin);
     }
 
-    // Parse background color if replacement is active
+    // Parse background color if replacement is active, and build a precise
+    // subject/background mask so every adjustment below touches the subject
+    // (chủ thể) only and never bleeds onto the background (nền).
     let bgR = -1, bgG = -1, bgB = -1;
+    let subjectMask: Uint8Array | null = null;
     if (backgroundHex && backgroundHex.startsWith('#')) {
       bgR = parseInt(backgroundHex.substring(1, 3), 16);
       bgG = parseInt(backgroundHex.substring(3, 5), 16);
       bgB = parseInt(backgroundHex.substring(5, 7), 16);
+      subjectMask = computeSubjectMask(data, canvas.width, canvas.height, bgR, bgG, bgB, 45);
     }
 
     const brightFactor = lighting * 1.5;
@@ -270,15 +342,10 @@ export const applyClientAdjustments = (
       let b = smoothData[i + 2];
       const a = data[i + 3];
 
-      // Identify if pixel is close to background color.
-      // If of solid background, we protect it perfectly.
-      let isBg = false;
-      if (bgR !== -1) {
-        const dist = Math.sqrt((r - bgR) ** 2 + (g - bgG) ** 2 + (b - bgB) ** 2);
-        if (dist < 45) {
-          isBg = true;
-        }
-      }
+      // Look up whether this pixel is background per the flood-filled mask
+      // (border-connected background-colored region), so filter-tab
+      // adjustments below apply strictly to the subject only.
+      const isBg = subjectMask ? subjectMask[i / 4] === 0 : false;
 
       const isSkin = isSkinPixel(r, g, b);
 
