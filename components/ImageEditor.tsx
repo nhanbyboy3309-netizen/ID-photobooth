@@ -96,6 +96,14 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
 
+  // Healing brush drag-paint state: an offscreen canvas kept alive for the
+  // duration of one stroke (mouse/touch down -> up) so each move only does a
+  // cheap heal-and-redraw instead of reloading/redecoding the whole image.
+  const healingCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const healingRectRef = useRef<DOMRect | null>(null);
+  const isPaintingRef = useRef(false);
+  const healingRafRef = useRef<number | null>(null);
+
   // Helper to add history
   const addToHistory = useCallback((url: string, label: string) => {
     setEditHistory((prev) => {
@@ -135,6 +143,13 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
     processedUrl,
     settings.beauty.lighting,
     settings.beauty.contrast,
+    settings.beauty.highlights,
+    settings.beauty.shadows,
+    settings.beauty.midtones,
+    settings.beauty.cyan,
+    settings.beauty.magenta,
+    settings.beauty.yellow,
+    settings.beauty.keyBlack,
     settings.beauty.skinToneType,
     settings.beauty.skinToneIntensity,
     settings.beauty.smoothSkin,
@@ -322,15 +337,50 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
       beauty: { ...settings.beauty, [key]: value },
     });
 
-  // Handle Healing Brush interaction
-  const handlePreviewInteraction = (clientX: number, clientY: number) => {
-    if (!imageContainerRef.current || !isHealingBrushActive) return;
+  // Healing brush: applies one dab directly onto the persistent stroke canvas
+  // (fast — no image decode/reload) and schedules at most one visual refresh
+  // per animation frame so dragging stays smooth even with many dabs.
+  const applyHealDabAndSchedulePreview = (clientX: number, clientY: number) => {
+    const canvas = healingCanvasRef.current;
+    const rect = healingRectRef.current;
+    if (!canvas || !rect) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    const rect = imageContainerRef.current.getBoundingClientRect();
     const x = clientX - rect.left;
     const y = clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const canvasX = x * scaleX;
+    const canvasY = y * scaleY;
+    const canvasRadius = healingBrushSize * scaleX;
 
-    // Run the healing brush on canvas background thread
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const healedPixels = healSpot(
+      imgData.data,
+      canvas.width,
+      canvas.height,
+      canvasX,
+      canvasY,
+      canvasRadius,
+    );
+    imgData.data.set(healedPixels);
+    ctx.putImageData(imgData, 0, 0);
+
+    if (healingRafRef.current === null) {
+      healingRafRef.current = requestAnimationFrame(() => {
+        healingRafRef.current = null;
+        const liveCanvas = healingCanvasRef.current;
+        if (liveCanvas) setClientProcessedUrl(liveCanvas.toDataURL("image/png", 1.0));
+      });
+    }
+  };
+
+  const startHealingStroke = (clientX: number, clientY: number) => {
+    if (!imageContainerRef.current || !isHealingBrushActive) return;
+    const rect = imageContainerRef.current.getBoundingClientRect();
+    healingRectRef.current = rect;
+
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.src = processedUrl;
@@ -340,33 +390,34 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
       canvas.height = img.height;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-
       ctx.drawImage(img, 0, 0);
-      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-      // Scale coordinates from client visual rect container to actual canvas dimensions
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      const canvasX = x * scaleX;
-      const canvasY = y * scaleY;
-      const canvasRadius = healingBrushSize * scaleX;
-
-      // Apply spot healing
-      const healedPixels = healSpot(
-        imgData.data,
-        canvas.width,
-        canvas.height,
-        canvasX,
-        canvasY,
-        canvasRadius,
-      );
-      imgData.data.set(healedPixels);
-      ctx.putImageData(imgData, 0, 0);
-
-      const healedUrl = canvas.toDataURL("image/png", 1.0);
-      setProcessedUrl(healedUrl);
-      addToHistory(healedUrl, `Cọ tẩy mụn (${Math.round(healingBrushSize)}px)`);
+      healingCanvasRef.current = canvas;
+      isPaintingRef.current = true;
+      applyHealDabAndSchedulePreview(clientX, clientY);
     };
+  };
+
+  const continueHealingStroke = (clientX: number, clientY: number) => {
+    if (!isPaintingRef.current) return;
+    applyHealDabAndSchedulePreview(clientX, clientY);
+  };
+
+  const finishHealingStroke = () => {
+    if (!isPaintingRef.current) return;
+    isPaintingRef.current = false;
+    if (healingRafRef.current !== null) {
+      cancelAnimationFrame(healingRafRef.current);
+      healingRafRef.current = null;
+    }
+    const canvas = healingCanvasRef.current;
+    healingCanvasRef.current = null;
+    if (!canvas) return;
+
+    const healedUrl = canvas.toDataURL("image/png", 1.0);
+    setProcessedUrl(healedUrl);
+    setClientProcessedUrl(healedUrl);
+    addToHistory(healedUrl, `Cọ tẩy mụn (${Math.round(healingBrushSize)}px)`);
   };
 
   const handleFinish = () => {
@@ -432,9 +483,11 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
       className="flex flex-col-reverse lg:flex-row h-[100dvh] w-full bg-dark-950 overflow-hidden font-sans pb-safe text-gray-100"
       onMouseUp={() => {
         isDraggingRef.current = false;
+        finishHealingStroke();
       }}
       onTouchEnd={() => {
         isDraggingRef.current = false;
+        finishHealingStroke();
       }}
     >
       {isCropping && (
@@ -586,14 +639,14 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
             }}
             onMouseDown={(e) => {
               if (isHealingBrushActive) {
-                handlePreviewInteraction(e.clientX, e.clientY);
+                startHealingStroke(e.clientX, e.clientY);
               } else {
                 isDraggingRef.current = true;
               }
             }}
             onTouchStart={(e) => {
               if (isHealingBrushActive && e.touches[0]) {
-                handlePreviewInteraction(e.touches[0].clientX, e.touches[0].clientY);
+                startHealingStroke(e.touches[0].clientX, e.touches[0].clientY);
               } else {
                 isDraggingRef.current = true;
               }
@@ -603,9 +656,10 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
                 const rect = imageContainerRef.current.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
-                
+
                 if (isHealingBrushActive) {
                   setHoverCoords({ x, y });
+                  if (isPaintingRef.current) continueHealingStroke(e.clientX, e.clientY);
                 } else if (isDraggingRef.current) {
                   const clampedX = Math.max(0, Math.min(x, rect.width));
                   setSliderPosition((clampedX / rect.width) * 100);
@@ -617,9 +671,10 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
                 const rect = imageContainerRef.current.getBoundingClientRect();
                 const x = e.touches[0].clientX - rect.left;
                 const y = e.touches[0].clientY - rect.top;
-                
+
                 if (isHealingBrushActive) {
                   setHoverCoords({ x, y });
+                  if (isPaintingRef.current) continueHealingStroke(e.touches[0].clientX, e.touches[0].clientY);
                 } else if (isDraggingRef.current) {
                   const clampedX = Math.max(0, Math.min(x, rect.width));
                   setSliderPosition((clampedX / rect.width) * 100);

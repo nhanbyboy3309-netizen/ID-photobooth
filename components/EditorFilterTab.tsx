@@ -16,6 +16,76 @@ interface EditorFilterTabProps {
   setHealingBrushSize?: (size: number) => void;
 }
 
+// Reusable -50..+50 tone slider (Lighting, Contrast, Highlights, Shadows, Midtones)
+const ToneSlider = ({
+  label,
+  value,
+  onChange,
+  accent = "accent-brand-500",
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  accent?: string;
+}) => (
+  <div className="p-4 rounded-2xl border border-white/5 bg-white/5">
+    <div className="flex justify-between text-[10px] font-black text-gray-300 mb-3 uppercase tracking-widest">
+      <span>{label}</span>
+      <span
+        className={`px-2 py-0.5 rounded text-[9px] ${value > 0 ? "bg-orange-500/20 text-orange-400" : value < 0 ? "bg-blue-500/20 text-blue-400" : "bg-gray-700 text-gray-400"}`}
+      >
+        {value > 0 ? `+${value}` : value}
+      </span>
+    </div>
+    <input
+      type="range"
+      min="-50"
+      max="50"
+      step="5"
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className={`w-full ${accent}`}
+    />
+  </div>
+);
+
+// Reusable 0..100 ink slider (Cyan/Magenta/Yellow/Key)
+const InkSlider = ({
+  label,
+  dotColor,
+  value,
+  onChange,
+  accent,
+}: {
+  label: string;
+  dotColor: string;
+  value: number;
+  onChange: (v: number) => void;
+  accent: string;
+}) => (
+  <div className="p-4 rounded-2xl border border-white/5 bg-white/5">
+    <div className="flex justify-between items-center text-[10px] font-black text-gray-300 mb-3 uppercase tracking-widest">
+      <span className="flex items-center gap-2">
+        <span
+          className="w-2.5 h-2.5 rounded-full border border-white/20"
+          style={{ backgroundColor: dotColor }}
+        />
+        {label}
+      </span>
+      <span className="text-[9px] font-bold text-gray-400">{value}%</span>
+    </div>
+    <input
+      type="range"
+      min="0"
+      max="100"
+      step="5"
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className={`w-full ${accent}`}
+    />
+  </div>
+);
+
 const EditorFilterTab: React.FC<EditorFilterTabProps> = ({
   settings,
   onClientBeautyChange,
@@ -160,6 +230,66 @@ const EditorFilterTab: React.FC<EditorFilterTabProps> = ({
             className="w-full accent-purple-500"
           />
         </div>
+      </div>
+
+      {/* 🔴 VÙNG SÁNG / VÙNG TỐI / TRUNG GIAN (TONE RANGE) */}
+      <div className="pt-6 border-t border-white/10 space-y-4">
+        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">
+          Vùng sáng · Vùng tối · Trung gian
+        </label>
+        <ToneSlider
+          label="Vùng sáng (Highlights)"
+          value={settings.beauty.highlights}
+          onChange={(v) => onClientBeautyChange("highlights", v)}
+          accent="accent-yellow-400"
+        />
+        <ToneSlider
+          label="Sắc độ trung gian (Midtones)"
+          value={settings.beauty.midtones}
+          onChange={(v) => onClientBeautyChange("midtones", v)}
+          accent="accent-emerald-400"
+        />
+        <ToneSlider
+          label="Vùng tối (Shadows)"
+          value={settings.beauty.shadows}
+          onChange={(v) => onClientBeautyChange("shadows", v)}
+          accent="accent-indigo-400"
+        />
+      </div>
+
+      {/* 🔴 CHỈNH MÀU CMYK */}
+      <div className="pt-6 border-t border-white/10 space-y-4">
+        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">
+          Chỉnh màu CMYK
+        </label>
+        <InkSlider
+          label="Cyan"
+          dotColor="#22d3ee"
+          value={settings.beauty.cyan}
+          onChange={(v) => onClientBeautyChange("cyan", v)}
+          accent="accent-cyan-400"
+        />
+        <InkSlider
+          label="Magenta"
+          dotColor="#e879f9"
+          value={settings.beauty.magenta}
+          onChange={(v) => onClientBeautyChange("magenta", v)}
+          accent="accent-fuchsia-400"
+        />
+        <InkSlider
+          label="Yellow"
+          dotColor="#fde047"
+          value={settings.beauty.yellow}
+          onChange={(v) => onClientBeautyChange("yellow", v)}
+          accent="accent-yellow-300"
+        />
+        <InkSlider
+          label="Key (Black)"
+          dotColor="#3f3f46"
+          value={settings.beauty.keyBlack}
+          onChange={(v) => onClientBeautyChange("keyBlack", v)}
+          accent="accent-gray-400"
+        />
       </div>
 
       {/* 🔴 TÔNG MÀU DA / SKINTONE (ONLY APPLIES TO DETECTED SKIN PIXELS) */}

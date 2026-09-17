@@ -55,7 +55,14 @@ const PhotoBooth: React.FC<PhotoBoothProps> = ({ onSaveToGallery, initialPhoto, 
       
       lighting: 0,
       contrast: 0,
-      
+      highlights: 0,
+      shadows: 0,
+      midtones: 0,
+      cyan: 0,
+      magenta: 0,
+      yellow: 0,
+      keyBlack: 0,
+
       lipstickColor: 'pink', // ID chuẩn
       lipstickIntensity: 0,
       blushColor: 'pink_soft', // ID chuẩn

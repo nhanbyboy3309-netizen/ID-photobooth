@@ -39,6 +39,17 @@ export interface BeautySettings {
   lighting: number;          // -50 to +50
   contrast: number;          // -50 to +50
 
+  // Tone range adjustments (Client-side) — like Highlights/Shadows/Midtones in Lightroom
+  highlights: number;        // -50 to +50 (Vùng sáng)
+  shadows: number;           // -50 to +50 (Vùng tối)
+  midtones: number;          // -50 to +50 (Sắc độ trung gian)
+
+  // CMYK ink-style color adjustment (Client-side) — 0 = no ink added
+  cyan: number;               // 0-100
+  magenta: number;            // 0-100
+  yellow: number;             // 0-100
+  keyBlack: number;           // 0-100 (K / độ đậm chung)
+
   // Detailed Makeup (AI)
   lipstickColor: string;     // ID or Label from config
   lipstickIntensity: number; // 0-100
