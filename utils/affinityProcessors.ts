@@ -189,8 +189,23 @@ export function healSpot(
 }
 
 /**
+ * Tonal-range weights for a 0-1 luminance value, used to blend Highlights/
+ * Shadows/Midtones adjustments smoothly (no hard cutoffs/banding between
+ * ranges). Shadows peak at luminance 0, Highlights peak at 1, Midtones peak
+ * at 0.5 — the three weights always sum to 1.
+ */
+const toneWeights = (l: number) => {
+  const shadow = Math.max(0, 1 - l * 2);
+  const highlight = Math.max(0, (l - 0.5) * 2);
+  const midtone = Math.max(0, 1 - shadow - highlight);
+  return { shadow, highlight, midtone };
+};
+
+/**
  * Unified client-side photo processing.
- * Applies lighting, contrast globally, skin softening, and skin-tone adjustment ONLY to skin pixels.
+ * Applies lighting, contrast, highlights/shadows/midtones, and CMYK ink
+ * adjustment globally, plus skin softening and skin-tone adjustment ONLY to
+ * skin pixels.
  */
 export const applyClientAdjustments = (
   imgSrc: string,
@@ -200,6 +215,7 @@ export const applyClientAdjustments = (
   const img = new Image();
   img.crossOrigin = 'anonymous';
   img.src = imgSrc;
+  img.onerror = () => onComplete(imgSrc);
   img.onload = () => {
     const canvas = document.createElement('canvas');
     canvas.width = img.width;
@@ -213,7 +229,10 @@ export const applyClientAdjustments = (
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imgData.data;
 
-    const { lighting, contrast, skinToneType, skinToneIntensity, smoothSkin } = settings.beauty;
+    const {
+      lighting, contrast, skinToneType, skinToneIntensity, smoothSkin,
+      highlights, shadows, midtones, cyan, magenta, yellow, keyBlack,
+    } = settings.beauty;
     const backgroundHex = settings.backgroundHex;
 
     // 1. Bilateral filter for skin smoothing (if smoothSkin > 0)
@@ -230,9 +249,20 @@ export const applyClientAdjustments = (
       bgB = parseInt(backgroundHex.substring(5, 7), 16);
     }
 
-    const brightFactor = lighting * 1.5; 
+    const brightFactor = lighting * 1.5;
     const contrastFactor = (100 + contrast * 1.5) / 100;
     const stK = skinToneIntensity / 100;
+
+    const highlightFactor = highlights * 1.2;
+    const shadowFactor = shadows * 1.2;
+    const midtoneFactor = midtones * 1.2;
+    const hasToneRangeAdjust = highlights !== 0 || shadows !== 0 || midtones !== 0;
+
+    const cyanAmt = cyan / 100;
+    const magentaAmt = magenta / 100;
+    const yellowAmt = yellow / 100;
+    const kAmt = keyBlack / 100;
+    const hasCmykAdjust = cyan > 0 || magenta > 0 || yellow > 0 || keyBlack > 0;
 
     for (let i = 0; i < data.length; i += 4) {
       let r = smoothData[i];
@@ -273,6 +303,25 @@ export const applyClientAdjustments = (
             g = g * (1 - stK * 0.12) + (stK * 0.12 * 130);
             b = b * (1 - stK * 0.12) + (stK * 0.12 * 90);
           }
+        }
+
+        // Highlights/Shadows/Midtones — luminance-weighted additive adjustment,
+        // smoothly blended between tonal ranges (no hard cutoffs/banding)
+        if (hasToneRangeAdjust) {
+          const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+          const { shadow: wS, highlight: wH, midtone: wM } = toneWeights(luminance);
+          const toneAdjust = wS * shadowFactor + wM * midtoneFactor + wH * highlightFactor;
+          r += toneAdjust;
+          g += toneAdjust;
+          b += toneAdjust;
+        }
+
+        // CMYK ink-style color adjustment — each channel darkened by its
+        // complementary ink (C->R, M->G, Y->B) plus the shared K (black) ink
+        if (hasCmykAdjust) {
+          r *= (1 - cyanAmt * 0.6) * (1 - kAmt * 0.5);
+          g *= (1 - magentaAmt * 0.6) * (1 - kAmt * 0.5);
+          b *= (1 - yellowAmt * 0.6) * (1 - kAmt * 0.5);
         }
       }
 
