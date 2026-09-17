@@ -43,8 +43,13 @@ export function bilateralFilter(
   const r = 2; // 5x5 window for fast rendering and beautiful local blending
   const sigmaS = 4.0;
   // Standard range sigma. Increase it slightly with smoothing intensity
-  const sigmaC = 12.0 + (smoothingIntensity * 0.4); 
-  
+  const sigmaC = 12.0 + (smoothingIntensity * 0.3);
+
+  // Even at max slider intensity, blend back a floor of the original pixel so
+  // fine pore/skin-grain texture is never fully erased — full replacement
+  // reads as plastic/airbrushed, not real skin.
+  const textureBlend = Math.min(0.85, smoothingIntensity / 100);
+
   const spatialWeights = [];
   for (let dy = -r; dy <= r; dy++) {
     for (let dx = -r; dx <= r; dx++) {
@@ -95,9 +100,12 @@ export function bilateralFilter(
       }
 
       if (totalWeight > 0) {
-        destData[idx] = Math.round(sumR / totalWeight);
-        destData[idx + 1] = Math.round(sumG / totalWeight);
-        destData[idx + 2] = Math.round(sumB / totalWeight);
+        const smoothR = sumR / totalWeight;
+        const smoothG = sumG / totalWeight;
+        const smoothB = sumB / totalWeight;
+        destData[idx] = Math.round(r_val * (1 - textureBlend) + smoothR * textureBlend);
+        destData[idx + 1] = Math.round(g_val * (1 - textureBlend) + smoothG * textureBlend);
+        destData[idx + 2] = Math.round(b_val * (1 - textureBlend) + smoothB * textureBlend);
       }
     }
   }
