@@ -2,6 +2,15 @@
 import React from 'react';
 import { AppConfig, PhotoSettings } from '../types';
 import { t } from '../services/i18n';
+import { skinSmoothTier } from '../services/geminiService';
+
+const SMOOTH_TIER_LABELS = [
+  'Tắt',
+  'Mức 1 · Nhẹ — giữ nguyên lỗ chân lông',
+  'Mức 2 · Vừa — mịn hơn, vẫn thấy lỗ chân lông',
+  'Mức 3 · Cao — mịn đẹp, lỗ chân lông mờ',
+  'Mức 4 · Tối đa — mịn nhất, vẫn giữ vân da thật',
+];
 
 interface EditorMakeupTabProps {
   config: AppConfig;
@@ -35,6 +44,11 @@ const EditorMakeupTab: React.FC<EditorMakeupTabProps> = ({ config, settings, onA
                   onChange={(e) => onAiBeautyChange(item.id as any, Number(e.target.value))} 
                   className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-brand-500"
                 />
+                {item.id === 'smoothSkin' && (
+                  <p className="text-[10px] text-emerald-400/90 font-semibold">
+                    {SMOOTH_TIER_LABELS[skinSmoothTier(settings.beauty.smoothSkin)]}
+                  </p>
+                )}
             </div>
          ))}
       </div>
