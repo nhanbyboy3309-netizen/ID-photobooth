@@ -80,8 +80,9 @@ Tiêu chí: mặt nhìn thẳng, mắt mở, miệng đóng, đủ sáng, không
 
   app.post("/api/gemini/process", async (req, res) => {
     try {
-      const { imageBase64, systemPrompt, model, apiKey } = req.body;
+      const { imageBase64, systemPrompt, model, apiKey, aspectRatio } = req.body;
       if (!imageBase64 || !systemPrompt) return res.status(400).json({ error: "Missing data" });
+      const safeAspectRatio = ["1:1", "2:3", "3:4"].includes(aspectRatio) ? aspectRatio : undefined;
 
       const targetModel = model || "gemini-3.1-flash-image";
       console.log(`[Gemini Process] Running image generation with model: ${targetModel}`);
@@ -102,7 +103,10 @@ Tiêu chí: mặt nhìn thẳng, mắt mở, miệng đóng, đủ sáng, không
         config: {
           // Mặc định model chỉ xuất 1K nếu không set — 2K sắc nét hơn hẳn cho
           // ảnh in 300dpi mà chưa quá nặng/chậm như 4K.
-          imageConfig: { imageSize: "2K" }
+          imageConfig: {
+            imageSize: "2K",
+            ...(safeAspectRatio ? { aspectRatio: safeAspectRatio } : {}),
+          }
         }
       });
 

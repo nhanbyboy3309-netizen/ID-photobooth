@@ -9,6 +9,14 @@ import { t } from '../services/i18n';
 import PrintSidebar from './PrintSidebar';
 import PrintSheetView from './PrintSheetView';
 
+// Crop-to-fill instead of stretching, so a ratio mismatch never distorts the face.
+const drawCover = (ctx: CanvasRenderingContext2D, img: HTMLImageElement, dx: number, dy: number, dw: number, dh: number) => {
+  const scale = Math.max(dw / img.width, dh / img.height);
+  const sw = dw / scale;
+  const sh = dh / scale;
+  ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, dx, dy, dw, dh);
+};
+
 interface PrintPreviewProps {
   photoId: string;
   processedImage: string;
@@ -78,8 +86,8 @@ const PrintPreview: React.FC<PrintPreviewProps> = ({
             const x = startX + (i % layout.cols) * cellW; const y = startY + Math.floor(i / layout.cols) * cellH;
             ctx.save(); ctx.beginPath(); ctx.rect(x, y, cellW, cellH); ctx.clip();
             if (bgCol) { ctx.fillStyle = bgCol; ctx.fillRect(x, y, cellW, cellH); }
-            if (layout.rotated) { ctx.translate(x + cellW/2, y + cellH/2); ctx.rotate(-Math.PI/2); ctx.drawImage(photoImg, -cellH/2, -cellW/2, cellH, cellW); }
-            else ctx.drawImage(photoImg, x, y, cellW, cellH);
+            if (layout.rotated) { ctx.translate(x + cellW/2, y + cellH/2); ctx.rotate(-Math.PI/2); drawCover(ctx, photoImg, -cellH/2, -cellW/2, cellH, cellW); }
+            else drawCover(ctx, photoImg, x, y, cellW, cellH);
             ctx.restore(); ctx.strokeStyle = '#d1d5db'; ctx.setLineDash([15, 15]); ctx.strokeRect(x, y, cellW, cellH);
         }
         

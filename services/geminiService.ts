@@ -118,6 +118,14 @@ export const analyzeIDPhotoFrame = async (
    PROCESS ID PHOTO (MAIN PIPELINE)
 ========================================================= */
 
+// Must match the camera/crop ratios, otherwise the model may return a different
+// shape that later gets stretched into the print cell and distorts the face.
+const ASPECT_RATIO_BY_SIZE: Record<PhotoSize, string> = {
+  [PhotoSize.SIZE_3X4]: "3:4",
+  [PhotoSize.SIZE_4X6]: "2:3",
+  [PhotoSize.SIZE_5X5]: "1:1",
+};
+
 export const processIDPhoto = async (
   imageBase64: string,
   bgType: BackgroundType,
@@ -137,45 +145,83 @@ export const processIDPhoto = async (
   const eyebrow = Math.round(((safeBeauty.eyebrowIntensity || 0) / 100) * 60);
   const eyelash = Math.round(((safeBeauty.eyelashIntensity || 0) / 100) * 50);
 
-  /* ---------------- BACKGROUND ---------------- */
+  // Image models follow verbal strength far more reliably than "N/100" scores.
+  const level = (v: number) =>
+    v <= 30 ? "subtle" : v <= 60 ? "moderate" : "clearly visible but still natural";
 
-  const backgroundMode =
-    bgType === BackgroundType.ORIGINAL ? "NONE" : "CUSTOM";
+  /* ---------------- EDIT LIST (only what was requested) ---------------- */
 
-  const backgroundColor =
-    bgType === BackgroundType.ORIGINAL ? "N/A" : bgHex;
+  const edits: string[] = [
+    `Color & light: correct it the way a photo editor would — neutral white balance (remove any yellow, orange, green or blue cast), even exposure, softly lift harsh shadows on the face, true-to-life skin color. This is a tonal adjustment of the existing pixels, not a redraw.`,
+  ];
+
+  if (smoothSkin > 0 || blemish > 0) {
+    const skinParts: string[] = [];
+    if (blemish > 0) skinParts.push(`remove temporary blemishes (acne, red spots, small scratches) and reduce redness and under-eye darkness — ${level(blemish)}`);
+    if (smoothSkin > 0) skinParts.push(`even out skin tone and reduce oily shine and uneven texture — ${level(smoothSkin)}`);
+    edits.push(`Skin on the face, neck and any visible chest, retouched consistently with no seam or color break at the jawline: ${skinParts.join("; ")}. Keep natural skin texture and fine pores visible — a high-end studio retouch, not a beauty filter; never plastic, waxy, blurred or airbrushed.`);
+  }
+
+  const makeupParts: string[] = [];
+  if ((safeBeauty.lipstickIntensity || 0) > 0) makeupParts.push(`${safeBeauty.lipstickColor} lip color, ${level(safeBeauty.lipstickIntensity)}, exactly inside the existing lip outline`);
+  if ((safeBeauty.blushIntensity || 0) > 0) makeupParts.push(`${safeBeauty.blushColor} blush on the cheeks, ${level(safeBeauty.blushIntensity)}`);
+  if (contour > 0) makeupParts.push(`${level(contour)} soft contour shading (color only, no reshaping)`);
+  if (eyebrow > 0) makeupParts.push(`fill and define the eyebrows within their exact existing shape, ${level(eyebrow)}`);
+  if (eyelash > 0) makeupParts.push(`darken and define the existing eyelashes, ${level(eyelash)}`);
+  if (makeupParts.length) edits.push(`Makeup: ${makeupParts.join("; ")}.`);
+
+  const hairColor = safeBeauty.hairColor;
+  const hasHairColor = Boolean(hairColor && !/^(original|màu gốc)$/i.test(hairColor));
+  const hairParts: string[] = [];
+  if ((safeBeauty.hairVolume || 0) > 0) hairParts.push(`tidy flyaways and add ${level(safeBeauty.hairVolume)} volume`);
+  if (safeBeauty.hairStyle === "short") hairParts.push("make the hair look neatly shorter and tidier");
+  if (safeBeauty.hairStyle === "long") hairParts.push("extend the hair naturally to a longer length with the same color and texture");
+  if (hasHairColor) hairParts.push(`recolor the hair to ${hairColor} with natural shading`);
+  if (hairParts.length) edits.push(`Hair: ${hairParts.join("; ")}. Keep the same hairline and part, and do not cover or change the outline of the face.`);
+
+  edits.push(
+    bgType === BackgroundType.ORIGINAL || !bgHex
+      ? "Background: keep the original background unchanged."
+      : `Background: replace it with a perfectly flat, uniform solid color ${bgHex} — no gradient, shadow, texture or vignette. Clean, natural edges around the hair and shoulders, no halo or color fringe.`
+  );
+
+  if (clothingPrompt) {
+    edits.push(`Clothing: replace only the clothing below the neckline with: "${clothingPrompt}". Fit it naturally to the existing shoulders and body. Do not alter the neck, jaw, face or hair.`);
+  }
 
   /* =========================================================
-     FINAL SYSTEM PROMPT
+     FINAL PROMPT
+     Short, positive and edit-oriented on purpose: wording like "re-render",
+     "add fine detail" or "apply fully" makes image models regenerate the
+     face, which is what breaks biometric identity.
   ========================================================= */
 
-  const systemPrompt = `ROLE: Professional ID photo retouching AI. Priority 1 (never violate): preserve biometric identity exactly. Priority 2: apply the requested cosmetic beautification fully and well — do not under-apply it out of excess caution.
+  const systemPrompt = `Edit the provided ID photo. This is a retouch of a real photo of a real person, not a new picture: every part of the person's anatomy stays exactly where and how it is, and only surface color, tone and texture change as listed below.
 
-IDENTITY LOCK — hard rule, always: face shape, bone structure, proportions, and the exact position/size/shape of eyes, nose, mouth, eyebrows, and ears must stay identical to the original. No reshaping, resizing, or repositioning of any facial feature. Never add or remove moles, freckles, scars, or birthmarks. Never invent skin texture or interpret noise as facial features. Always compare against the original image; do not re-detect or reinterpret geometry. If no face is found or it is incomplete, output the original image unchanged. Apply ONLY the edits specified below, nothing else.
+IDENTITY — highest priority, overrides every other instruction:
+- The face stays geometrically identical to the input: same face outline, jawline, chin, cheek width, forehead, hairline, and ear shape and position.
+- Same eyes (size, shape, spacing, eyelid folds, iris color, gaze), same nose (length, width, nostrils), same mouth (lip shape, thickness, width), same eyebrow shape and position, same natural facial asymmetry.
+- Keep moles, freckles, scars and birthmarks. Keep the exact expression, head pose, head size, framing and camera angle.
+- Do not slim, enlarge, lift, symmetrize or "idealize" any feature. Do not redraw or regenerate the face, and do not invent detail that is not in the input.
+- The result must pass a face-recognition match against the original. If an edit below would require changing face geometry, skip that edit.
 
-MANDATORY FIRST STEP — RELIGHT THE SUBJECT: the input photo may have colored/directional lighting (sunset, tungsten indoor light, window light, shade). Before anything else, re-render the subject (face, neck, hair, clothing) as if photographed today in a professional ID-photo studio: flat, neutral white (6500K) light from the front, no color cast, no warm/cool tint, no directional shadow on one side of the face. This is a mandatory global relight/white-balance pass, applied even if no other edit is requested — it changes color and light only, identity/geometry/pose stay exactly as in IDENTITY LOCK above.
+EDITS TO APPLY:
+${edits.map((e, i) => `${i + 1}. ${e}`).join("\n")}
 
-ALLOWED — cosmetic surface edits (color/texture only, never geometry; this IS the requested beautification, apply it at the given intensity, not just minimally):
-- Skin: smoothing ${smoothSkin}/100, blemish cleanup ${blemish}/100 — subtractive retouching that removes blemishes, redness, and uneven texture, preserve identity marks, no new texture/pores added. Keep skin looking natural and photorealistic, never plastic/waxy/airbrushed/CGI-smooth — even at the highest smoothing intensity, retain a subtle, visible layer of natural pore texture and skin grain so the result still reads as real human skin, not a blurred filter. Apply identically to all visible skin, including the neck and any visible chest/décolletage skin, not just the face — tone, smoothness, and the relighting above must match seamlessly across face and neck with no visible seam or color break at the jawline.
-- Makeup: lip color=${safeBeauty.lipstickColor || "NONE"} intensity ${safeBeauty.lipstickIntensity || 0}/100; blush intensity ${safeBeauty.blushIntensity || 0}/100; contour (shading only) ${contour}/100.
-- Eyebrows: color/definition enhancement along the existing shape, intensity ${eyebrow}/100 — do not reshape. Eyelashes: enhance existing lashes, intensity ${eyelash}/100.
-- Hair: tidy the existing hairstyle only, volume ${safeBeauty.hairVolume || 0}/100, color=${safeBeauty.hairColor || "ORIGINAL"}. Do not invent a new hairstyle.
-- Posture: global rotation/translation/uniform scale only, no local warping.
-- Background: mode=${backgroundMode}, color=${backgroundColor}. Flat solid color — no gradient, shadow, or blur.
-- Sharpness: increase overall image clarity and fine detail — crisp eyes, eyebrows, eyelashes, individual hair strands, fabric texture, and edge definition. Remove any camera blur/softness. Do not sharpen past the point of adding noise or halo artifacts, and do not let this counteract the skin smoothing above — sharpen detail elsewhere, keep smoothed skin areas smooth.
-Lock facial pixels once Phase 1 is complete.
-
-PHASE 2 — Clothing only, face LOCKED: ${clothingPrompt ? `enabled, prompt="${clothingPrompt}"` : "disabled"}.
-Edit strictly below the jawline — the jawline is an absolute boundary. Zero feathering, zero blur, zero overlap with skin. Neck shape and position unchanged. If any facial or neck pixel would be affected, cancel the clothing edit and output the Phase 1 result instead.
-
-OUTPUT: PNG, high quality, base64, no text, no metadata, no explanation.`;
+Everything not listed above stays exactly as in the input. Output one photorealistic image with the same aspect ratio and composition as the input, no text or watermark.`;
 
   try {
     const apiKey = getConfig().geminiApiKey;
     const response = await fetch("/api/gemini/process", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageBase64, systemPrompt, model: targetModel, apiKey: apiKey || undefined })
+      body: JSON.stringify({
+        imageBase64,
+        systemPrompt,
+        model: targetModel,
+        aspectRatio: ASPECT_RATIO_BY_SIZE[size],
+        apiKey: apiKey || undefined,
+      })
     });
 
     if (!response.ok) {
