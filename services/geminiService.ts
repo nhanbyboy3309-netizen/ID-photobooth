@@ -126,25 +126,18 @@ const ASPECT_RATIO_BY_SIZE: Record<PhotoSize, string> = {
   [PhotoSize.SIZE_5X5]: "1:1",
 };
 
-// Skin smoothing level 0-4 from the 0-100 slider; shared with the editor UI label.
-export const skinSmoothTier = (v: number): 0 | 1 | 2 | 3 | 4 =>
-  v <= 0 ? 0 : v <= 25 ? 1 : v <= 50 ? 2 : v <= 75 ? 3 : 4;
-
-// Each level is smoother than the last, but even the top level must stay real human skin.
-const SKIN_SMOOTH_PROMPT = [
-  "",
-  "Level 1 of 4 (light): only even out the skin tone slightly and reduce oily shine. Pores and natural skin texture stay fully visible, as in the original.",
-  "Level 2 of 4 (medium): noticeably smoother, more even skin. Slightly refine pores and uneven texture, but pores and skin texture remain clearly visible.",
-  "Level 3 of 4 (high): smooth, even, healthy-looking skin like a professional beauty portrait. Pores are refined and much less visible, but fine natural skin micro-texture is still present.",
-  "Level 4 of 4 (maximum): the most beautiful, flawless-looking skin that is still unmistakably real human skin — very smooth and even with pores mostly refined, yet keeping a faint natural skin grain and the natural light and shadow of the face, so it never looks plastic, waxy, blurred or doll-like.",
-];
+// Exact slider percentage plus anchor points, so the model scales the effect
+// continuously with every 1% instead of jumping between fixed levels.
+const smoothPrompt = (v: number) =>
+  `strength exactly ${v}% on a 0–100% scale, scaled proportionally between these anchors: ` +
+  `1% = only even out the skin tone slightly and reduce oily shine, pores and natural skin texture fully kept as in the original; ` +
+  `50% = noticeably smoother, more even skin with pores slightly refined but still clearly visible; ` +
+  `100% = the most beautiful, flawless-looking skin that is still unmistakably real human skin — very smooth and even with pores mostly refined, yet keeping a faint natural skin grain and the natural light and shadow of the face.`;
 
 const blemishPrompt = (v: number) =>
-  v <= 30
-    ? "remove only the most noticeable acne spots"
-    : v <= 60
-      ? "remove acne, red spots and small marks, and reduce redness"
-      : "remove all temporary blemishes — acne, red spots, marks, redness and under-eye darkness — for a clean, even complexion";
+  `strength exactly ${v}% on a 0–100% scale, scaled proportionally between these anchors: ` +
+  `1% = remove only the single most noticeable acne spot; ` +
+  `100% = remove all temporary blemishes — acne, red spots, marks, redness and under-eye darkness — for a clean, even complexion.`;
 
 export const processIDPhoto = async (
   imageBase64: string,
@@ -176,9 +169,9 @@ export const processIDPhoto = async (
   ];
 
   if (smoothSkin > 0 || blemish > 0) {
-    const blemishText = blemish > 0 ? `Blemishes: ${blemishPrompt(blemish)}.` : "Blemishes: leave as they are.";
+    const blemishText = blemish > 0 ? `Blemish removal: ${blemishPrompt(blemish)}` : "Blemishes: leave as they are.";
     const smoothText = smoothSkin > 0
-      ? `Smoothness — ${SKIN_SMOOTH_PROMPT[skinSmoothTier(smoothSkin)]}`
+      ? `Smoothing: ${smoothPrompt(smoothSkin)}`
       : "Smoothness: keep the original pores and skin texture unchanged.";
     edits.push(`Skin on the face, neck and any visible chest, retouched consistently with no seam or color break at the jawline. ${blemishText} ${smoothText} At every level the result must look like a real person's skin, never plastic, waxy, blurred or airbrushed.`);
   }
