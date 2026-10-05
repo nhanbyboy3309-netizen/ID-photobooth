@@ -126,6 +126,19 @@ const ASPECT_RATIO_BY_SIZE: Record<PhotoSize, string> = {
   [PhotoSize.SIZE_5X5]: "1:1",
 };
 
+// Exact slider percentage plus anchor points, so the model scales the effect
+// continuously with every 1% instead of jumping between fixed levels.
+const smoothPrompt = (v: number) =>
+  `strength exactly ${v}% on a 0–100% scale, scaled proportionally between these anchors: ` +
+  `1% = only even out the skin tone slightly and reduce oily shine, pores and natural skin texture fully kept as in the original; ` +
+  `50% = noticeably smoother, more even skin with pores slightly refined but still clearly visible; ` +
+  `100% = the most beautiful, flawless-looking skin that is still unmistakably real human skin — very smooth and even with pores mostly refined, yet keeping a faint natural skin grain and the natural light and shadow of the face.`;
+
+const blemishPrompt = (v: number) =>
+  `strength exactly ${v}% on a 0–100% scale, scaled proportionally between these anchors: ` +
+  `1% = remove only the single most noticeable acne spot; ` +
+  `100% = remove all temporary blemishes — acne, red spots, marks, redness and under-eye darkness — for a clean, even complexion.`;
+
 export const processIDPhoto = async (
   imageBase64: string,
   bgType: BackgroundType,
@@ -139,8 +152,8 @@ export const processIDPhoto = async (
   /* ---------------- SAFETY CLAMPS ---------------- */
 
   const safeBeauty = beauty || {} as BeautySettings;
-  const smoothSkin = Math.min(safeBeauty.smoothSkin || 0, 70);
-  const blemish = Math.min(safeBeauty.blemishIntensity || 0, 80);
+  const smoothSkin = safeBeauty.smoothSkin || 0;
+  const blemish = safeBeauty.blemishIntensity || 0;
   const contour = Math.round(((safeBeauty.contourIntensity || 0) / 100) * 40);
   const eyebrow = Math.round(((safeBeauty.eyebrowIntensity || 0) / 100) * 60);
   const eyelash = Math.round(((safeBeauty.eyelashIntensity || 0) / 100) * 50);
@@ -156,10 +169,11 @@ export const processIDPhoto = async (
   ];
 
   if (smoothSkin > 0 || blemish > 0) {
-    const skinParts: string[] = [];
-    if (blemish > 0) skinParts.push(`remove temporary blemishes (acne, red spots, small scratches) and reduce redness and under-eye darkness — ${level(blemish)}`);
-    if (smoothSkin > 0) skinParts.push(`even out skin tone and reduce oily shine and uneven texture — ${level(smoothSkin)}`);
-    edits.push(`Skin on the face, neck and any visible chest, retouched consistently with no seam or color break at the jawline: ${skinParts.join("; ")}. Keep natural skin texture and fine pores visible — a high-end studio retouch, not a beauty filter; never plastic, waxy, blurred or airbrushed.`);
+    const blemishText = blemish > 0 ? `Blemish removal: ${blemishPrompt(blemish)}` : "Blemishes: leave as they are.";
+    const smoothText = smoothSkin > 0
+      ? `Smoothing: ${smoothPrompt(smoothSkin)}`
+      : "Smoothness: keep the original pores and skin texture unchanged.";
+    edits.push(`Skin on the face, neck and any visible chest, retouched consistently with no seam or color break at the jawline. ${blemishText} ${smoothText} At every level the result must look like a real person's skin, never plastic, waxy, blurred or airbrushed.`);
   }
 
   const makeupParts: string[] = [];

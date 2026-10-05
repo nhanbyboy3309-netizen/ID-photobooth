@@ -30,7 +30,7 @@ const EditorMakeupTab: React.FC<EditorMakeupTabProps> = ({ config, settings, onA
                    <span className="text-[10px] font-mono text-brand-400 bg-brand-900/20 px-1.5 rounded">{(settings.beauty as any)[item.id]}%</span>
                 </div>
                 <input 
-                  type="range" min="0" max="100" step="5" 
+                  type="range" min="0" max="100" step={item.id === 'smoothSkin' || item.id === 'blemishIntensity' ? 1 : 5}
                   value={(settings.beauty as any)[item.id]} 
                   onChange={(e) => onAiBeautyChange(item.id as any, Number(e.target.value))} 
                   className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-brand-500"

@@ -173,7 +173,7 @@ const EditorFilterTab: React.FC<EditorFilterTabProps> = ({
           type="range"
           min="0"
           max="100"
-          step="10"
+          step="1"
           value={settings.beauty.smoothSkin}
           onChange={(e) =>
             onClientBeautyChange("smoothSkin", Number(e.target.value))
