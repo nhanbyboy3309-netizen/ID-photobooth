@@ -75,15 +75,6 @@ const PhotoBooth: React.FC<PhotoBoothProps> = ({ onSaveToGallery, initialPhoto, 
     phoneNumber: config.contactZalo // Default phone from config
   });
 
-  const generatePhotoId = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Avoid confusing chars like 0, O, 1, I
-    let result = '';
-    for (let i = 0; i < 8; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-  };
-
   const handleStartConfig = (config: { size: PhotoSize; background: BackgroundType; quantity: number }) => {
     // Find default hex for selected background type from config if available, otherwise fallback
     // This is simple logic, assumes standard types map to standard defaults if not custom selected later
@@ -102,7 +93,8 @@ const PhotoBooth: React.FC<PhotoBoothProps> = ({ onSaveToGallery, initialPhoto, 
   };
 
   const handleCapture = (imageSrc: string) => {
-    setCurrentPhotoId(generatePhotoId());
+    // The ID is issued by the backend when the photo is first saved on the print screen.
+    setCurrentPhotoId('');
     setCapturedImage(imageSrc);
     setBaseImage(imageSrc);
     setStep(AppStep.EDIT);
@@ -178,6 +170,7 @@ const PhotoBooth: React.FC<PhotoBoothProps> = ({ onSaveToGallery, initialPhoto, 
           onNew={resetFlow}
           onSaved={onSaveToGallery}
           onHome={onHome}
+          onPhotoIdIssued={setCurrentPhotoId}
           config={config}
         />
       )}

@@ -625,11 +625,13 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
 
         {/* Image Container Flex-1 to take available space */}
         <div className="flex-1 w-full relative flex items-center justify-center min-h-0">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full pb-2 z-20">
-            <span className="px-3 py-1 bg-brand-600/80 backdrop-blur-md text-white text-[10px] font-mono rounded-full border border-white/20 shadow-lg">
-              ID: {photoId}
-            </span>
-          </div>
+          {photoId && (
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full pb-2 z-20">
+              <span className="px-3 py-1 bg-brand-600/80 backdrop-blur-md text-white text-[10px] font-mono rounded-full border border-white/20 shadow-lg">
+                ID: {photoId}
+              </span>
+            </div>
+          )}
           <div
             ref={imageContainerRef}
             className={`relative z-10 shadow-[0_20px_50px_rgba(0,0,0,0.7)] rounded-xl overflow-hidden border-4 border-gray-800 bg-gray-900 touch-none max-h-full max-w-full ${isHealingBrushActive ? 'cursor-crosshair' : 'cursor-col-resize'}`}
