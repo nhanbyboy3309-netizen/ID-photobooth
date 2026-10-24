@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { PhotoSettings, PhotoSize, AppConfig, BackgroundType } from '../types';
 import { savePhotoToCloud } from '../services/databaseService';
@@ -26,11 +26,12 @@ interface PrintPreviewProps {
   onNew: () => void;
   onSaved?: () => void;
   onHome: () => void;
+  onPhotoIdIssued?: (id: string) => void;
   config: AppConfig;
 }
 
 const PrintPreview: React.FC<PrintPreviewProps> = ({ 
-  photoId: passedPhotoId, processedImage, size, settings, onBack, onNew, onHome, config
+  photoId: passedPhotoId, processedImage, size, settings, onBack, onNew, onHome, onPhotoIdIssued, config
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [realPhotoId, setRealPhotoId] = useState<string | null>(passedPhotoId);
@@ -126,16 +127,27 @@ const PrintPreview: React.FC<PrintPreviewProps> = ({
      })();
   }, [qrUrl, processedImage, totalSheets, config]);
 
+  // The backend issues the ID (IPddmmyyNNN) on the first save. This screen unmounts on
+  // Back, so the ID is also handed to the parent and comes back as `photoId` when the
+  // same photo is finished again — that save overwrites it instead of creating a duplicate.
+  const issuedIdRef = useRef<string | undefined>(passedPhotoId || undefined);
+  // StrictMode runs this effect twice on mount; without the guard both runs would request a new ID.
+  const lastSavedImageRef = useRef<string>('');
+
   useEffect(() => {
+    if (!processedImage || processedImage === lastSavedImageRef.current) return;
+    lastSavedImageRef.current = processedImage;
     (async () => {
-      setIsSaving(true); 
-      const id = await savePhotoToCloud({ 
-        id: passedPhotoId, 
-        dataUrl: processedImage, 
-        timestamp: Date.now(), 
-        settings 
+      setIsSaving(true);
+      const id = await savePhotoToCloud({
+        id: issuedIdRef.current,
+        dataUrl: processedImage,
+        timestamp: Date.now(),
+        settings
       });
       if (id) {
+        issuedIdRef.current = id;
+        onPhotoIdIssued?.(id);
         setRealPhotoId(id);
         const v = `${window.location.href.split('?')[0]}?photoId=${id}`;
         setQrUrl(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(v)}&ecc=H`);
