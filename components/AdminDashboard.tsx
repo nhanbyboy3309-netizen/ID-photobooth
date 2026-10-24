@@ -109,7 +109,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentConfig, onUpdate
 
         {/* Main Content Area */}
         <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-black scrollbar-hide">
-          <div className="max-w-4xl mx-auto p-6 lg:p-10 pb-40">
+          <div className="max-w-4xl mx-auto p-6 lg:p-10">
             <div className="animate-fadeIn">
                 {activeTab === 'system' && (
                   <AdminSystemTab 
@@ -131,7 +131,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentConfig, onUpdate
       </div>
 
       {/* Persistent Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 p-4 z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
+      <div className="flex-none bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 p-4 z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
              <div className={`w-2.5 h-2.5 rounded-full ${isSyncing ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></div>
