@@ -97,6 +97,7 @@ const PhotoBooth: React.FC<PhotoBoothProps> = ({ onSaveToGallery, initialPhoto, 
     setCurrentPhotoId('');
     setCapturedImage(imageSrc);
     setBaseImage(imageSrc);
+    setProcessedImage(imageSrc);
     setStep(AppStep.EDIT);
   };
 
@@ -118,6 +119,7 @@ const PhotoBooth: React.FC<PhotoBoothProps> = ({ onSaveToGallery, initialPhoto, 
     setCurrentPhotoId('');
     setCapturedImage('');
     setBaseImage('');
+    setProcessedImage('');
     setEditHistory([]);
     setStep(AppStep.CAPTURE);
   };
