@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { PhotoSettings, PhotoSize, AppConfig, BackgroundType } from '../types';
 import { savePhotoToCloud } from '../services/databaseService';
+import { loadCorsImage } from '../utils/loadCorsImage';
 import { t } from '../services/i18n';
 
 // Sub-components
@@ -96,8 +97,7 @@ const PrintPreview: React.FC<PrintPreviewProps> = ({
         const footerY = canvas.height - 15 * MM_TO_PX; 
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, footerY, canvas.width, 15 * MM_TO_PX);
         ctx.beginPath(); ctx.moveTo(0, footerY); ctx.lineTo(canvas.width, footerY); ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.stroke();
-        let lo = 5 * MM_TO_PX; if (config.printShowLogo !== false && logoImg) { const lh = 10 * MM_TO_PX; const lw = logoImg.width * (lh / logoImg.height); ctx.drawImage(logoImg, lo, footerY + 2.5 * MM_TO_PX, lw, lh); lo += lw + 3 * MM_TO_PX; }
-        ctx.fillStyle = '#000000'; ctx.font = `bold ${5 * MM_TO_PX}px sans-serif`; ctx.fillText(config.shopName, lo, footerY + 7 * MM_TO_PX);
+        if (config.printShowLogo !== false && logoImg) { const lh = 10 * MM_TO_PX; const lw = logoImg.width * (lh / logoImg.height); ctx.drawImage(logoImg, 5 * MM_TO_PX, footerY + 2.5 * MM_TO_PX, lw, lh); }
         if (config.printShowQr !== false && qrImg) ctx.drawImage(qrImg, canvas.width - 17 * MM_TO_PX, footerY + 1.5 * MM_TO_PX, 12 * MM_TO_PX, 12 * MM_TO_PX);
         return canvas.toDataURL('image/png');
   };
@@ -109,7 +109,7 @@ const PrintPreview: React.FC<PrintPreviewProps> = ({
          try {
              const [p, l, q] = await Promise.all([
                  loadImage(processedImage),
-                 (config.printShowLogo !== false && config.logoUrl) ? loadImage(config.logoUrl).catch(() => null) : null,
+                 (config.printShowLogo !== false && config.logoUrl) ? loadCorsImage(config.logoUrl).catch(() => null) : null,
                  config.printShowQr !== false ? loadImage(qrUrl).catch(() => null) : null,
              ]);
              
