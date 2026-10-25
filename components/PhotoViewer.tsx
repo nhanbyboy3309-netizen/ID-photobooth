@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { getPhotoById } from '../services/databaseService';
 import { SavedPhoto, PhotoSize, AppConfig } from '../types';
+import { loadCorsImage } from '../utils/loadCorsImage';
 
 interface PhotoViewerProps {
   photoId: string;
@@ -94,7 +95,7 @@ const PhotoViewer: React.FC<PhotoViewerProps> = ({ photoId, config }) => {
 
         const [mainPhotoImg, logoImg, qrImg] = await Promise.all([
             loadImage(photo.dataUrl),
-            (config?.printShowLogo !== false && config?.logoUrl) ? loadImage(config.logoUrl).catch(() => null) : Promise.resolve(null),
+            (config?.printShowLogo !== false && config?.logoUrl) ? loadCorsImage(config.logoUrl).catch(() => null) : Promise.resolve(null),
             config?.printShowQr !== false ? loadImage(qrApiUrl).catch(() => null) : Promise.resolve(null)
         ]);
 
@@ -140,18 +141,11 @@ const PhotoViewer: React.FC<PhotoViewerProps> = ({ photoId, config }) => {
         ctx.beginPath(); ctx.moveTo(0, footerY); ctx.lineTo(canvas.width, footerY);
         ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.stroke();
 
-        let leftOffset = 5 * MM_TO_PX;
         if (config?.printShowLogo !== false && logoImg) {
             const logoH = 10 * MM_TO_PX;
             const logoW = logoImg.width * (logoH / logoImg.height);
-            ctx.drawImage(logoImg, leftOffset, footerY + 2.5 * MM_TO_PX, logoW, logoH);
-            leftOffset += logoW + 3 * MM_TO_PX;
+            ctx.drawImage(logoImg, 5 * MM_TO_PX, footerY + 2.5 * MM_TO_PX, logoW, logoH);
         }
-
-        ctx.fillStyle = '#000000';
-        ctx.font = `bold ${5 * MM_TO_PX}px sans-serif`;
-        ctx.textBaseline = 'middle';
-        ctx.fillText(config?.shopName || "ID Photo Booth", leftOffset, footerY + 7.5 * MM_TO_PX);
 
         if (config?.printShowQr !== false && qrImg) ctx.drawImage(qrImg, canvas.width - 17 * MM_TO_PX, footerY + 1.5 * MM_TO_PX, 12 * MM_TO_PX, 12 * MM_TO_PX);
 
