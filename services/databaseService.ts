@@ -1,6 +1,6 @@
 
 import { SavedPhoto, AppConfig } from "../types";
-import { getConfig } from "./configService";
+import { getConfig, LEGACY_GOOGLE_SCRIPT_URL } from "./configService";
 
 const getScriptUrl = (overrideUrl?: string) => {
     if (overrideUrl && overrideUrl.trim() !== '') return overrideUrl.trim();
@@ -43,9 +43,9 @@ const callAppsScript = async (action: string, payload: any = {}, overrideUrl?: s
     }
 };
 
-// Uploading a large photo to Drive takes ~17-40s; aborting mid-way would leave an
-// orphan file on Drive and lose the issued ID.
-const SAVE_PHOTO_TIMEOUT_MS = 90000;
+// Uploading a large photo to Drive takes ~17-40s (aborting mid-way would leave an orphan
+// file and lose the issued ID), and getPhoto returns several MB of base64 to slow phones.
+const PHOTO_TRANSFER_TIMEOUT_MS = 90000;
 
 /**
  * Saves a photo and returns its final ID, or null on failure.
@@ -63,7 +63,7 @@ export const savePhotoToCloud = async (
         dataUrl: photo.dataUrl,
         settings: photo.settings,
         timestamp: photo.timestamp || Date.now()
-    }, overrideUrl, SAVE_PHOTO_TIMEOUT_MS);
+    }, overrideUrl, PHOTO_TRANSFER_TIMEOUT_MS);
     const savedId = result && result.success ? (result.id || photo.id) : null;
     return savedId ? String(savedId) : null;
 };
@@ -71,13 +71,23 @@ export const savePhotoToCloud = async (
 export const getPhotoById = async (id: string, overrideUrl?: string, skipRetry: boolean = false): Promise<SavedPhoto | null> => {
     // Tăng cường số lần thử và độ trễ để đợi Apps Script xử lý xong (Cold Start)
     const maxRetries = skipRetry ? 1 : 5;
-    
+    const fetchPhoto = async (url?: string): Promise<SavedPhoto | null> => {
+        // getPhoto returns the full image as base64 (several MB): allow the long timeout.
+        const result = await callAppsScript('getPhoto', { id }, url, PHOTO_TRANSFER_TIMEOUT_MS);
+        return (result && result.success && result.photo) ? result.photo as SavedPhoto : null;
+    };
+
     for (let i = 0; i < maxRetries; i++) {
-        const result = await callAppsScript('getPhoto', { id }, overrideUrl);
-        if (result && result.success && result.photo) {
-            return result.photo as SavedPhoto;
+        const photo = await fetchPhoto(overrideUrl);
+        if (photo) return photo;
+
+        // Photos saved before the move to the current script live in the old deployment:
+        // look there once, right after the first miss, instead of after all retries.
+        if (i === 0 && !skipRetry && getScriptUrl(overrideUrl) !== LEGACY_GOOGLE_SCRIPT_URL) {
+            const legacy = await fetchPhoto(LEGACY_GOOGLE_SCRIPT_URL);
+            if (legacy) return { ...legacy, id: legacy.id || id };
         }
-        
+
         if (i < maxRetries - 1) {
             await new Promise(r => setTimeout(r, 1500));
         }

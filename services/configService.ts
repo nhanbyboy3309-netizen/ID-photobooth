@@ -90,7 +90,7 @@ export const DEFAULT_CONFIG: AppConfig = {
 
   adminPassword: "admin",
   logoUrl: "",
-  googleScriptUrl: "https://script.google.com/macros/s/AKfycbx_azcS4UUpm8j65Z7Vv50QXY7gUBZ2TlI0zGcGk2571aUR0vY2FqwkiftG83-VLf74/exec",
+  googleScriptUrl: "https://script.google.com/macros/s/AKfycbwnM2ElqhavvBSFFm9VqLhve-VzecOyQI0lMJhYSb6NfzYVkuCypetKYlcwDxUAYA_R/exec",
 
   // Print sheet footer branding toggles (shown at the bottom of every printed 13x18 sheet)
   printShowLogo: true,
@@ -108,6 +108,11 @@ export const DEFAULT_CONFIG: AppConfig = {
   customContentTextColor: "#1e40af",
   customContentSize: 'md'
 };
+
+// Old "Sync Engine V6" deployment (photos stored as PHOTO_<id>.json). It cannot issue or find
+// IPddmmyyNNN photos, so saved configs pointing to it are moved to the current default;
+// databaseService still reads it as a fallback so photos saved there before stay reachable.
+export const LEGACY_GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx_azcS4UUpm8j65Z7Vv50QXY7gUBZ2TlI0zGcGk2571aUR0vY2FqwkiftG83-VLf74/exec";
 
 export const saveConfig = (config: AppConfig) => {
   localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
@@ -138,6 +143,10 @@ export const getConfig = (): AppConfig => {
         }
       };
     } catch (e) {}
+  }
+
+  if ((config.googleScriptUrl || '').trim() === LEGACY_GOOGLE_SCRIPT_URL) {
+    config.googleScriptUrl = DEFAULT_CONFIG.googleScriptUrl;
   }
 
   return config;
