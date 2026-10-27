@@ -1,40 +1,17 @@
 import { PhotoSettings } from '../types';
 
 /**
- * Checks if a pixel falls within a robust range of human skin tones.
- * This is optimized to exclude typical passport backgrounds (white, blue, grey) and clothing.
- */
-export const isSkinPixel = (r: number, g: number, b: number): boolean => {
-  // Check that colors are not too dark or too bright/white
-  if (r < 50 || g < 35 || b < 20) return false;
-  // Red must be the dominant component
-  if (r <= g || r <= b) return false;
-  
-  // Skin values are rich in Red, moderate in Green, slightly lower in Blue
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  if (max - min < 15) return false;
-  if (r - g < 15) return false;
-  
-  // Exclude bright blue, pure green, or deep purple/blue backgrounds
-  if (b > r && b > g && b > 80) return false;
-  // Exclude absolute white background
-  if (r > 242 && g > 242 && b > 242) return false;
-  // Exclude very dark black/gray shadow areas
-  if (r < 40 && g < 40 && b < 40) return false;
-
-  return true;
-};
-
-/**
- * A fast, professional-grade Bilateral Filter (affinity-based) applied exclusively on skin pixels.
+ * A fast, professional-grade Bilateral Filter (affinity-based) applied to skin only.
  * Smooths skin while retaining high-frequency details/edges of hair, eyes, eyebrows, clothes, and background.
+ * `skinWeights` (0..1 per pixel, see skinWeightMap) scales the effect so it fades out at the
+ * edges of skin instead of switching on/off pixel by pixel.
  */
 export function bilateralFilter(
   srcData: Uint8ClampedArray,
   width: number,
   height: number,
-  smoothingIntensity: number // 0 to 100
+  smoothingIntensity: number, // 0 to 100
+  skinWeights: Float32Array
 ): Uint8ClampedArray {
   if (smoothingIntensity === 0) return srcData;
   const destData = new Uint8ClampedArray(srcData.length);
@@ -71,10 +48,9 @@ export function bilateralFilter(
       const g_val = srcData[idx + 1];
       const b_val = srcData[idx + 2];
 
-      // Smooth on skin pixels ONLY
-      if (!isSkinPixel(r_val, g_val, b_val)) {
-        continue;
-      }
+      const skinW = skinWeights[y * width + x];
+      if (skinW < 0.002) continue;
+      const blend = textureBlend * skinW;
 
       let sumR = 0, sumG = 0, sumB = 0, totalWeight = 0;
 
@@ -103,9 +79,9 @@ export function bilateralFilter(
         const smoothR = sumR / totalWeight;
         const smoothG = sumG / totalWeight;
         const smoothB = sumB / totalWeight;
-        destData[idx] = Math.round(r_val * (1 - textureBlend) + smoothR * textureBlend);
-        destData[idx + 1] = Math.round(g_val * (1 - textureBlend) + smoothG * textureBlend);
-        destData[idx + 2] = Math.round(b_val * (1 - textureBlend) + smoothB * textureBlend);
+        destData[idx] = Math.round(r_val * (1 - blend) + smoothR * blend);
+        destData[idx + 1] = Math.round(g_val * (1 - blend) + smoothG * blend);
+        destData[idx + 2] = Math.round(b_val * (1 - blend) + smoothB * blend);
       }
     }
   }
@@ -277,6 +253,53 @@ const toneWeights = (l: number) => {
   return { shadow, highlight, midtone };
 };
 
+const ramp = (x: number, lo: number, hi: number) => (x <= lo ? 0 : x >= hi ? 1 : (x - lo) / (hi - lo));
+
+// How skin-like a colour is, 0..1 (red-dominant, not too dark, not white/blue/grey). Soft on
+// purpose: a hard yes/no test flips pixels near its thresholds (shadows, cheek edges, lips,
+// hair) and leaves speckled, blotchy skin after smoothing or a tone change.
+const skinLikelihood = (r: number, g: number, b: number) => {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  return ramp(r, 40, 60) * ramp(g, 25, 45) * ramp(b, 10, 30) *
+    ramp(r - g, 5, 25) * ramp(r - b, 0, 15) * ramp(max - min, 8, 22) *
+    (1 - ramp(min, 225, 245));
+};
+
+// Separable box blur of a single-channel map (edges clamped). Two passes ≈ a gaussian.
+const boxBlur = (src: Float32Array, w: number, h: number, r: number): Float32Array => {
+  const tmp = new Float32Array(src.length), out = new Float32Array(src.length);
+  const span = 2 * r + 1;
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    let acc = 0;
+    for (let x = -r; x <= r; x++) acc += src[row + Math.min(w - 1, Math.max(0, x))];
+    for (let x = 0; x < w; x++) {
+      tmp[row + x] = acc / span;
+      acc += src[row + Math.min(w - 1, x + r + 1)] - src[row + Math.max(0, x - r)];
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    let acc = 0;
+    for (let y = -r; y <= r; y++) acc += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+    for (let y = 0; y < h; y++) {
+      out[y * w + x] = acc / span;
+      acc += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
+    }
+  }
+  return out;
+};
+
+// Per-pixel skin weight 0..1: soft skin test, zero on the background, then smoothed so the
+// skin-tone change fades in and out instead of switching on/off pixel by pixel.
+const skinWeightMap = (data: Uint8ClampedArray, w: number, h: number, subjectMask: Uint8Array | null) => {
+  const map = new Float32Array(w * h);
+  for (let p = 0, i = 0; p < map.length; p++, i += 4) {
+    map[p] = subjectMask && subjectMask[p] === 0 ? 0 : skinLikelihood(data[i], data[i + 1], data[i + 2]);
+  }
+  const radius = Math.max(2, Math.round(Math.min(w, h) / 400));
+  return boxBlur(boxBlur(map, w, h, radius), w, h, radius);
+};
+
 /**
  * Unified client-side photo processing.
  * Applies lighting, contrast, highlights/shadows/midtones, and CMYK ink
@@ -311,12 +334,6 @@ export const applyClientAdjustments = (
     } = settings.beauty;
     const backgroundHex = settings.backgroundHex;
 
-    // 1. Bilateral filter for skin smoothing (if smoothSkin > 0)
-    let smoothData = data;
-    if (smoothSkin > 0) {
-      smoothData = bilateralFilter(data, canvas.width, canvas.height, smoothSkin);
-    }
-
     // Parse background color if replacement is active, and build a precise
     // subject/background mask so every adjustment below touches the subject
     // (chủ thể) only and never bleeds onto the background (nền).
@@ -327,6 +344,17 @@ export const applyClientAdjustments = (
       bgG = parseInt(backgroundHex.substring(3, 5), 16);
       bgB = parseInt(backgroundHex.substring(5, 7), 16);
       subjectMask = computeSubjectMask(data, canvas.width, canvas.height, bgR, bgG, bgB, 45);
+    }
+
+    // One soft skin map shared by skin smoothing and skin tone.
+    const skinWeights = smoothSkin > 0 || skinToneIntensity > 0
+      ? skinWeightMap(data, canvas.width, canvas.height, subjectMask)
+      : null;
+
+    // Bilateral filter for skin smoothing (if smoothSkin > 0)
+    let smoothData = data;
+    if (smoothSkin > 0 && skinWeights) {
+      smoothData = bilateralFilter(data, canvas.width, canvas.height, smoothSkin, skinWeights);
     }
 
     const brightFactor = lighting * 1.5;
@@ -355,28 +383,28 @@ export const applyClientAdjustments = (
       // adjustments below apply strictly to the subject only.
       const isBg = subjectMask ? subjectMask[i / 4] === 0 : false;
 
-      const isSkin = isSkinPixel(r, g, b);
-
       if (!isBg) {
         // Apply Global Lighting and Contrast to the subject only, keeping background pristine
         r = (r - 128) * contrastFactor + 128 + brightFactor;
         g = (g - 128) * contrastFactor + 128 + brightFactor;
         b = (b - 128) * contrastFactor + 128 + brightFactor;
 
-        // Apply selective skin-tone adjustment ONLY on detected skin pixels
-        if (isSkin && skinToneIntensity > 0) {
+        // Skin-tone adjustment, weighted by how skin-like the area is (soft, smoothed mask)
+        const sw = skinWeights ? skinWeights[i / 4] : 0;
+        if (sw > 0.002) {
+          const k = stK * sw;
           if (skinToneType === 'fair') {
-            r = r + (255 - r) * stK * 0.22;
-            g = g + (255 - g) * stK * 0.20;
-            b = b + (255 - b) * stK * 0.17;
+            r = r + (255 - r) * k * 0.22;
+            g = g + (255 - g) * k * 0.20;
+            b = b + (255 - b) * k * 0.17;
           } else if (skinToneType === 'rosy') {
-            r = r + (255 - r) * stK * 0.22;
-            g = g + (255 - g) * stK * 0.13;
-            b = b + (255 - b) * stK * 0.16;
+            r = r + (255 - r) * k * 0.22;
+            g = g + (255 - g) * k * 0.13;
+            b = b + (255 - b) * k * 0.16;
           } else if (skinToneType === 'tan') {
-            r = r * (1 - stK * 0.12) + (stK * 0.12 * 180);
-            g = g * (1 - stK * 0.12) + (stK * 0.12 * 130);
-            b = b * (1 - stK * 0.12) + (stK * 0.12 * 90);
+            r = r * (1 - k * 0.12) + (k * 0.12 * 180);
+            g = g * (1 - k * 0.12) + (k * 0.12 * 130);
+            b = b * (1 - k * 0.12) + (k * 0.12 * 90);
           }
         }
 
