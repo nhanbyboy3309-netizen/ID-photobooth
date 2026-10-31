@@ -13,6 +13,8 @@ import {
   SkinToneType,
 } from "../types";
 import { processIDPhoto, determineAIModel } from "../services/geminiService";
+import { findHairStyle } from "../services/hairStyles";
+import { measureFace, BiometricMetric } from "../utils/faceBiometrics";
 import { t } from "../services/i18n";
 import { healSpot, applyClientAdjustments } from "../utils/affinityProcessors";
 
@@ -88,6 +90,9 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState<EditorTab>("background");
   const [loadingAction, setLoadingAction] = useState<string>("");
+  // Biometrics of the original photo, measured in the background as soon as it is set,
+  // and handed to the AI as the face it must keep.
+  const baseMetricsRef = useRef<{ url: string; metrics: Promise<BiometricMetric[] | null> } | null>(null);
 
   // Crop State
   const [isCropping, setIsCropping] = useState(false);
@@ -152,9 +157,30 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
     settings.beauty.keyBlack,
     settings.beauty.skinToneType,
     settings.beauty.skinToneIntensity,
-    settings.beauty.smoothSkin,
+    settings.beauty.clientSmoothSkin,
+    settings.beauty.sharpness,
     settings.backgroundHex,
   ]);
+
+  // One measurement per base image (a new crop is a new base image). Failures resolve to
+  // null so the AI call just goes without the numbers.
+  const getBaseMetrics = useCallback((url: string) => {
+    if (baseMetricsRef.current?.url !== url) {
+      baseMetricsRef.current = {
+        url,
+        metrics: measureFace(url).catch((e) => {
+          console.warn("Face measurement skipped:", e);
+          return null;
+        }),
+      };
+    }
+    return baseMetricsRef.current.metrics;
+  }, []);
+
+  // Start measuring right away, while the customer is still choosing options.
+  useEffect(() => {
+    if (baseImage) getBaseMetrics(baseImage);
+  }, [baseImage, getBaseMetrics]);
 
   // Sync baseImage to parent
   useEffect(() => {
@@ -168,6 +194,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
       bgHex: s.backgroundHex,
       cloth: s.clothingPrompt,
       blemish: beauty.blemishIntensity,
+      marks: !!beauty.removeSkinMarks,
       smooth: beauty.smoothSkin,
       lipCol: beauty.lipstickColor,
       lipInt: beauty.lipstickIntensity,
@@ -179,6 +206,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
       hair: beauty.hairVolume,
       hairStyle: beauty.hairStyle,
       hairColor: beauty.hairColor,
+      posture: !!beauty.fixPosture,
     });
   }, []);
 
@@ -188,6 +216,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
       bgHex: undefined,
       cloth: undefined,
       blemish: 0,
+      marks: false,
       smooth: 0,
       lipCol: settings.beauty.lipstickColor,
       lipInt: 0,
@@ -199,6 +228,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
       hair: 0,
       hairStyle: "original",
       hairColor: "original",
+      posture: false,
     });
   }, [settings.beauty.lipstickColor, settings.beauty.blushColor]);
 
@@ -233,6 +263,8 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
         settings.background === BackgroundType.ORIGINAL &&
         !settings.clothingPrompt &&
         settings.beauty.blemishIntensity === 0 &&
+        !settings.beauty.removeSkinMarks &&
+        !settings.beauty.fixPosture &&
         settings.beauty.smoothSkin === 0 &&
         settings.beauty.lipstickIntensity === 0 &&
         settings.beauty.blushIntensity === 0 &&
@@ -250,23 +282,29 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
         resultUrl = baseImage;
         setProcessedUrl(resultUrl);
       } else {
-        const lipLabel =
-          (config?.lipstickOptions || []).find(
-            (o) => o.id === settings.beauty.lipstickColor,
-          )?.label || settings.beauty.lipstickColor;
-        const blushLabel =
-          (config?.blushOptions || []).find((o) => o.id === settings.beauty.blushColor)
-            ?.label || settings.beauty.blushColor;
-        const hairLabel =
-          (config?.hairColorOptions || []).find(
-            (o) => o.id === settings.beauty.hairColor,
-          )?.label || settings.beauty.hairColor;
+        // Labels are Vietnamese ("Hồng Nhạt"), so the exact hex goes along for the AI.
+        // "original" (Màu gốc, hex "transparent") stays a bare label so it still means "keep".
+        const colorName = (
+          options: { id: string; label: string; hex: string }[] | undefined,
+          id: string | undefined,
+        ) => {
+          const opt = (options || []).find((o) => o.id === id);
+          if (!opt) return id;
+          return /^#[0-9a-f]{3,8}$/i.test(opt.hex) ? `${opt.label} (${opt.hex})` : opt.label;
+        };
+        const lipLabel = colorName(config?.lipstickOptions, settings.beauty.lipstickColor);
+        const blushLabel = colorName(config?.blushOptions, settings.beauty.blushColor);
+        const hairLabel = colorName(config?.hairColorOptions, settings.beauty.hairColor);
+        // The AI gets the admin-editable style description, not the id.
+        const hairStylePrompt =
+          findHairStyle(config, settings.beauty.hairStyle)?.prompt || "original";
 
         const resolvedBeauty = {
           ...settings.beauty,
           lipstickColor: lipLabel,
           blushColor: blushLabel,
           hairColor: hairLabel,
+          hairStyle: hairStylePrompt,
         };
 
         const modelDecision = determineAIModel(
@@ -279,6 +317,13 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
 
         setLoadingAction(`Đang xử lý (${modelDecision.model})...`);
 
+        // Normally measured already in the background; never wait long for it, the AI
+        // call simply goes without the numbers if they are not ready or no face was found.
+        const faceMetrics = await Promise.race([
+          getBaseMetrics(baseImage),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+        ]);
+
         const result = await processIDPhoto(
           baseImage,
           settings.background,
@@ -286,8 +331,10 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
           settings.clothingPrompt,
           resolvedBeauty,
           settings.size,
-          modelDecision.model
+          modelDecision.model,
+          faceMetrics
         );
+
         resultUrl = result;
         setProcessedUrl(result);
         const modelBadge = modelDecision.model.includes("pro") ? "Pro Model" : "Flash Model";
@@ -545,6 +592,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
               config={config}
               settings={settings}
               onClothingClick={handleClothingClick}
+              onAiBeautyChange={handleAiBeautyChange}
             />
           )}
           {activeTab === "makeup" && (

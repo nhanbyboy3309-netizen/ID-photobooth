@@ -42,7 +42,10 @@ const PhotoBooth: React.FC<PhotoBoothProps> = ({ onSaveToGallery, initialPhoto, 
     clothingPrompt: undefined,
     beauty: {
       smoothSkin: 0,
+      clientSmoothSkin: 0,
       blemishIntensity: 0,
+      removeSkinMarks: false,
+      fixPosture: false,
       
       // Hair defaults
       hairVolume: 0,
@@ -62,6 +65,7 @@ const PhotoBooth: React.FC<PhotoBoothProps> = ({ onSaveToGallery, initialPhoto, 
       magenta: 0,
       yellow: 0,
       keyBlack: 0,
+      sharpness: 40,
 
       lipstickColor: 'pink', // ID chuẩn
       lipstickIntensity: 0,

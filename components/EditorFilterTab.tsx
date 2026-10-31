@@ -166,7 +166,7 @@ const EditorFilterTab: React.FC<EditorFilterTabProps> = ({
             <span>Mịn Da (Smoothing)</span>
           </div>
           <span className="text-[9px] font-bold text-emerald-400">
-            {settings.beauty.smoothSkin}%
+            {settings.beauty.clientSmoothSkin || 0}%
           </span>
         </div>
         <input
@@ -174,14 +174,41 @@ const EditorFilterTab: React.FC<EditorFilterTabProps> = ({
           min="0"
           max="100"
           step="1"
-          value={settings.beauty.smoothSkin}
+          value={settings.beauty.clientSmoothSkin || 0}
           onChange={(e) =>
-            onClientBeautyChange("smoothSkin", Number(e.target.value))
+            onClientBeautyChange("clientSmoothSkin", Number(e.target.value))
           }
           className="w-full accent-emerald-500"
         />
         <p className="text-[8.5px] text-gray-500 mt-1">
           Thuật toán lọc song phương Bilateral Filter chỉ xử lý làm mịn vùng da, không chạm nền.
+        </p>
+      </div>
+
+      {/* 🔴 ĐỘ NÉT (DSLR) — client-side unsharp mask, weak on skin */}
+      <div className="p-4 rounded-2xl border border-white/5 bg-white/5">
+        <div className="flex justify-between text-[10px] font-black text-gray-300 mb-3 uppercase tracking-widest">
+          <div className="flex items-center gap-2">
+            <span>📷</span>
+            <span>Độ nét (DSLR)</span>
+          </div>
+          <span className="text-[9px] font-bold text-sky-400">
+            {settings.beauty.sharpness || 0}%
+          </span>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value={settings.beauty.sharpness || 0}
+          onChange={(e) =>
+            onClientBeautyChange("sharpness", Number(e.target.value))
+          }
+          className="w-full accent-sky-500"
+        />
+        <p className="text-[8.5px] text-gray-500 mt-1">
+          Làm nét mắt, tóc, viền áo; da chỉ nét nhẹ để không lộ khuyết điểm. Không chạm nền, không vẽ lại mặt.
         </p>
       </div>
 
