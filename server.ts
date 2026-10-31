@@ -80,12 +80,14 @@ Tiêu chí: mặt nhìn thẳng, mắt mở, miệng đóng, đủ sáng, không
 
   app.post("/api/gemini/process", async (req, res) => {
     try {
-      const { imageBase64, systemPrompt, model, apiKey, aspectRatio } = req.body;
+      const { imageBase64, systemPrompt, model, apiKey, aspectRatio, imageSize } = req.body;
       if (!imageBase64 || !systemPrompt) return res.status(400).json({ error: "Missing data" });
       const safeAspectRatio = ["1:1", "2:3", "3:4"].includes(aspectRatio) ? aspectRatio : undefined;
+      // The client picks 1K for small captures so the model does not invent detail when upscaling.
+      const safeImageSize = ["1K", "2K"].includes(imageSize) ? imageSize : "2K";
 
       const targetModel = model || "gemini-3.1-flash-image";
-      console.log(`[Gemini Process] Running image generation with model: ${targetModel}`);
+      console.log(`[Gemini Process] Running image generation with model: ${targetModel} (${safeImageSize})`);
 
       const ai = getAI(apiKey);
       const mimeType = imageBase64.match(/^data:(image\/\w+);base64,/)?.[1] || "image/png";
@@ -101,10 +103,10 @@ Tiêu chí: mặt nhìn thẳng, mắt mở, miệng đóng, đủ sáng, không
           ]
         }],
         config: {
-          // Mặc định model chỉ xuất 1K nếu không set — 2K sắc nét hơn hẳn cho
-          // ảnh in 300dpi mà chưa quá nặng/chậm như 4K.
+          // 2K chỉ khi ảnh gốc đủ điểm ảnh; ảnh chụp nhỏ dùng 1K để model không
+          // tự vẽ thêm chi tiết khi phóng to (ảnh bị mờ, bết). 1K vẫn dư cho in 300dpi.
           imageConfig: {
-            imageSize: "2K",
+            imageSize: safeImageSize,
             ...(safeAspectRatio ? { aspectRatio: safeAspectRatio } : {}),
           }
         }
@@ -128,6 +130,13 @@ Tiêu chí: mặt nhìn thẳng, mắt mở, miệng đóng, đủ sáng, không
       res.status(500).json({ error: error.message });
     }
   });
+
+  // MediaPipe WASM for the in-browser face biometric check (utils/faceBiometrics.ts).
+  // Served from node_modules (the Dockerfile copies it) so no CDN is needed at runtime.
+  app.use(
+    "/mediapipe-wasm",
+    express.static(path.join(process.cwd(), "node_modules/@mediapipe/tasks-vision/wasm"))
+  );
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

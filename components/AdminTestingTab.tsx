@@ -24,7 +24,10 @@ const AdminTestingTab: React.FC<AdminTestingTabProps> = ({ form }) => {
     printQuantity: 8,
     beauty: {
       smoothSkin: 0,
+      clientSmoothSkin: 0,
       blemishIntensity: 0,
+      removeSkinMarks: false,
+      fixPosture: false,
       skinToneType: SkinToneType.NATURAL,
       skinToneIntensity: 0,
       lighting: 0,
@@ -36,6 +39,7 @@ const AdminTestingTab: React.FC<AdminTestingTabProps> = ({ form }) => {
       magenta: 0,
       yellow: 0,
       keyBlack: 0,
+      sharpness: 40,
       lipstickColor: 'Đỏ',
       lipstickIntensity: 0,
       blushColor: 'Hồng Nhạt',

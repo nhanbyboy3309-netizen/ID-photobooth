@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { AppConfig } from '../types';
 import AdminClothingTab from './AdminClothingTab';
 import AdminMakeupTab from './AdminMakeupTab';
+import AdminHairStyleTab from './AdminHairStyleTab';
 import AdminBackgroundTab from './AdminBackgroundTab';
 import AdminAIModelTab from './AdminAIModelTab';
 import { t } from '../services/i18n';
@@ -12,7 +13,7 @@ interface AdminAIExtrasTabProps {
   setForm: React.Dispatch<React.SetStateAction<AppConfig>>;
 }
 
-type SubTab = 'models' | 'clothing' | 'makeup' | 'background';
+type SubTab = 'models' | 'clothing' | 'hair' | 'makeup' | 'background';
 
 const AdminAIExtrasTab: React.FC<AdminAIExtrasTabProps> = ({ form, setForm }) => {
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('models');
@@ -20,6 +21,7 @@ const AdminAIExtrasTab: React.FC<AdminAIExtrasTabProps> = ({ form, setForm }) =>
   const subTabs = [
     { id: 'models', label: 'Cấu hình AI Model', icon: '🤖' },
     { id: 'clothing', label: t('admin.sub.clothing', form), icon: '👔' },
+    { id: 'hair', label: 'Kiểu tóc', icon: '💇' },
     { id: 'makeup', label: t('admin.sub.makeup', form), icon: '💄' },
     { id: 'background', label: t('admin.sub.background', form), icon: '🖼️' },
   ];
@@ -48,7 +50,8 @@ const AdminAIExtrasTab: React.FC<AdminAIExtrasTabProps> = ({ form, setForm }) =>
       <div className="min-h-[500px]">
         {activeSubTab === 'models' && <AdminAIModelTab form={form} setForm={setForm} />}
         {activeSubTab === 'clothing' && <AdminClothingTab form={form} setForm={setForm} />}
-        {activeSubTab === 'makeup' && <AdminMakeupTab form={form} setForm={setForm} />}
+        {activeSubTab === 'hair' && <AdminHairStyleTab form={form} setForm={setForm} />}
+        {activeSubTab === 'makeup' &&<AdminMakeupTab form={form} setForm={setForm} />}
         {activeSubTab === 'background' && <AdminBackgroundTab form={form} setForm={setForm} />}
       </div>
     </div>

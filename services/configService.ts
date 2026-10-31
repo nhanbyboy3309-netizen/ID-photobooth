@@ -1,5 +1,6 @@
 
 import { AppConfig, ClothingItem, BackgroundType, PhotoSize, HairColorOption, BlushOption, LipstickOption } from "../types";
+import { DEFAULT_HAIR_STYLES } from "./hairStyles";
 
 const CONFIG_KEY = 'id_photo_booth_config';
 
@@ -56,6 +57,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   lipstickOptions: DEFAULT_LIPSTICKS,
   blushOptions: DEFAULT_BLUSH,
   hairColorOptions: DEFAULT_HAIR_COLORS,
+  hairStyleOptions: DEFAULT_HAIR_STYLES,
 
   backgroundConfig: [
     { type: BackgroundType.WHITE, label: 'Trắng (Visa/ID)', hexColor: '#ffffff' },
@@ -136,6 +138,7 @@ export const getConfig = (): AppConfig => {
         lipstickOptions: Array.isArray(parsed?.lipstickOptions) ? parsed.lipstickOptions : DEFAULT_CONFIG.lipstickOptions,
         blushOptions: Array.isArray(parsed?.blushOptions) ? parsed.blushOptions : DEFAULT_CONFIG.blushOptions,
         hairColorOptions: Array.isArray(parsed?.hairColorOptions) ? parsed.hairColorOptions : DEFAULT_CONFIG.hairColorOptions,
+        hairStyleOptions: Array.isArray(parsed?.hairStyleOptions) ? parsed.hairStyleOptions : DEFAULT_CONFIG.hairStyleOptions,
         backgroundConfig: Array.isArray(parsed?.backgroundConfig) ? parsed.backgroundConfig : DEFAULT_CONFIG.backgroundConfig,
         photoRules: {
           ...DEFAULT_CONFIG.photoRules,

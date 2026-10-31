@@ -29,8 +29,10 @@ export enum SkinToneType {
 export interface BeautySettings {
   // Skin
   smoothSkin: number;        // 0-100 (AI Strength)
+  clientSmoothSkin?: number; // 0-100 (Client-side bilateral filter, Filter tab) — separate from the AI slider
   blemishIntensity: number;  // 0-100 (AI Strength) - Replaced boolean
-  
+  removeSkinMarks?: boolean; // AI: fully remove moles, scars, birthmarks (default: only faded)
+
   // Skin Tone (Client-side)
   skinToneType: SkinToneType;
   skinToneIntensity: number; // 0-100
@@ -50,6 +52,8 @@ export interface BeautySettings {
   yellow: number;             // 0-100
   keyBlack: number;           // 0-100 (K / độ đậm chung)
 
+  sharpness?: number;         // 0-100 (Client-side) DSLR-like sharpening, weak on skin
+
   // Detailed Makeup (AI)
   lipstickColor: string;     // ID or Label from config
   lipstickIntensity: number; // 0-100
@@ -64,9 +68,11 @@ export interface BeautySettings {
   
   // Hair Features
   hairVolume: number;        // 0-100 (Làm dày/đều tóc)
-  hairStyle?: 'original' | 'short' | 'long'; // New Hair Style Option
+  hairStyle?: string;        // 'original' or an id from AppConfig.hairStyleOptions (resolved to its prompt before the AI call)
   hairColor?: string;        // ID or Label from config
-  
+
+  fixPosture?: boolean;      // AI: straighten head, neck and shoulders to ID-photo standard
+
   makeupStyle: 'natural' | 'grooming'; // Basic vs Full
 }
 
@@ -114,6 +120,13 @@ export interface HairColorOption {
   hex: string;   // Used for UI Display
 }
 
+export interface HairStyleOption {
+  id: string;
+  label: string;   // Shown in the editor
+  gender: 'male' | 'female';
+  prompt: string;  // Style description sent to the AI; hairline and hair color are kept separately
+}
+
 export interface BackgroundConfigItem {
   id?: string; // Optional ID for management
   type: BackgroundType;
@@ -138,7 +151,8 @@ export interface AppConfig {
   
   lipstickOptions: LipstickOption[];
   blushOptions: BlushOption[];
-  hairColorOptions: HairColorOption[]; 
+  hairColorOptions: HairColorOption[];
+  hairStyleOptions?: HairStyleOption[]; // Missing in configs saved before hairstyles existed
   backgroundConfig: BackgroundConfigItem[];
   photoRules: Record<string, string[]>; 
 

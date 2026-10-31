@@ -7,14 +7,31 @@ interface EditorClothingTabProps {
   config: AppConfig;
   settings: PhotoSettings;
   onClothingClick: (prompt: string) => void;
+  onAiBeautyChange: (key: keyof PhotoSettings['beauty'], value: any) => void;
 }
 
-const EditorClothingTab: React.FC<EditorClothingTabProps> = ({ config, settings, onClothingClick }) => {
+const EditorClothingTab: React.FC<EditorClothingTabProps> = ({ config, settings, onClothingClick, onAiBeautyChange }) => {
   const [genderTab, setGenderTab] = useState<'male' | 'female'>('male');
   const activeOptions = (config.clothingOptions || []).filter(item => item.gender === genderTab);
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={!!settings.beauty.fixPosture}
+        onClick={() => onAiBeautyChange('fixPosture', !settings.beauty.fixPosture)}
+        className="w-full flex items-center justify-between gap-3 text-left p-4 rounded-2xl border border-white/10 bg-white/5"
+      >
+        <span className="min-w-0">
+          <span className="block text-xs font-bold text-gray-300">{t('editor.posture', config)}</span>
+          <span className="block text-[10px] text-gray-500">{t('editor.postureHint', config)}</span>
+        </span>
+        <span className={`relative shrink-0 w-10 h-6 rounded-full transition-colors ${settings.beauty.fixPosture ? 'bg-brand-500' : 'bg-gray-700'}`}>
+          <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${settings.beauty.fixPosture ? 'translate-x-4' : ''}`}></span>
+        </span>
+      </button>
+
       {/* Segmented Control */}
       <div className="flex bg-black/20 p-1.5 rounded-2xl border border-white/5">
         <button 

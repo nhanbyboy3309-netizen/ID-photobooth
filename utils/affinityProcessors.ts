@@ -300,6 +300,36 @@ const skinWeightMap = (data: Uint8ClampedArray, w: number, h: number, subjectMas
   return boxBlur(boxBlur(map, w, h, radius), w, h, radius);
 };
 
+// Unsharp mask on luminance (no colour fringes) for a crisp, DSLR-like look. Done here rather
+// than by the AI because asking the model for sharpness makes it redraw the face. Skin gets
+// only a quarter of the strength so pores and blemishes are not brought out, the background
+// none, and tiny differences (noise) are ignored. The change per pixel is capped: on strong
+// edges (nostrils, lips, hair against the background) an uncapped mask draws dark/bright rims.
+const MAX_SHARPEN_DELTA = 10;
+const sharpenLuma = (
+  src: Uint8ClampedArray, w: number, h: number, amount: number,
+  subjectMask: Uint8Array | null, skinWeights: Float32Array | null
+): Uint8ClampedArray => {
+  const luma = new Float32Array(w * h);
+  for (let p = 0, i = 0; p < luma.length; p++, i += 4) {
+    luma[p] = 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
+  }
+  const radius = Math.max(1, Math.round(Math.min(w, h) / 900));
+  const blurred = boxBlur(boxBlur(luma, w, h, radius), w, h, radius);
+  const out = new Uint8ClampedArray(src);
+  for (let p = 0, i = 0; p < luma.length; p++, i += 4) {
+    if (subjectMask && subjectMask[p] === 0) continue;
+    const detail = luma[p] - blurred[p];
+    const softened = detail * ramp(Math.abs(detail), 1, 4);
+    const raw = softened * amount * (1 - 0.75 * (skinWeights ? skinWeights[p] : 0));
+    const delta = Math.max(-MAX_SHARPEN_DELTA, Math.min(MAX_SHARPEN_DELTA, raw));
+    out[i] = src[i] + delta;
+    out[i + 1] = src[i + 1] + delta;
+    out[i + 2] = src[i + 2] + delta;
+  }
+  return out;
+};
+
 /**
  * Unified client-side photo processing.
  * Applies lighting, contrast, highlights/shadows/midtones, and CMYK ink
@@ -329,9 +359,12 @@ export const applyClientAdjustments = (
     const data = imgData.data;
 
     const {
-      lighting, contrast, skinToneType, skinToneIntensity, smoothSkin,
+      lighting, contrast, skinToneType, skinToneIntensity,
       highlights, shadows, midtones, cyan, magenta, yellow, keyBlack,
     } = settings.beauty;
+    // Not `smoothSkin`: that is the AI slider, and reusing it smoothed the skin twice.
+    const smoothSkin = settings.beauty.clientSmoothSkin || 0;
+    const sharpness = settings.beauty.sharpness || 0;
     const backgroundHex = settings.backgroundHex;
 
     // Parse background color if replacement is active, and build a precise
@@ -346,8 +379,8 @@ export const applyClientAdjustments = (
       subjectMask = computeSubjectMask(data, canvas.width, canvas.height, bgR, bgG, bgB, 45);
     }
 
-    // One soft skin map shared by skin smoothing and skin tone.
-    const skinWeights = smoothSkin > 0 || skinToneIntensity > 0
+    // One soft skin map shared by skin smoothing, skin tone and sharpening.
+    const skinWeights = smoothSkin > 0 || skinToneIntensity > 0 || sharpness > 0
       ? skinWeightMap(data, canvas.width, canvas.height, subjectMask)
       : null;
 
@@ -355,6 +388,9 @@ export const applyClientAdjustments = (
     let smoothData = data;
     if (smoothSkin > 0 && skinWeights) {
       smoothData = bilateralFilter(data, canvas.width, canvas.height, smoothSkin, skinWeights);
+    }
+    if (sharpness > 0) {
+      smoothData = sharpenLuma(smoothData, canvas.width, canvas.height, (sharpness / 100) * 1.5, subjectMask, skinWeights);
     }
 
     const brightFactor = lighting * 1.5;
