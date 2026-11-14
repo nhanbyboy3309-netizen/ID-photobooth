@@ -6,7 +6,13 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  const portArgIdx = process.argv.indexOf("--port");
+  const cliPort = portArgIdx !== -1 ? Number(process.argv[portArgIdx + 1]) : NaN;
+  const PORT = Number.isFinite(cliPort)
+    ? cliPort
+    : process.env.NODE_ENV === "production"
+      ? Number(process.env.PORT) || 3000
+      : 3000;
 
   app.use(cors());
   app.use(express.json({ limit: "50mb" }));
@@ -16,8 +22,8 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
-  const getAI = (clientApiKey?: string) => {
-    const apiKey = clientApiKey || process.env.GEMINI_API_KEY;
+  const getAI = () => {
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY_MISSING");
     }
@@ -45,10 +51,10 @@ async function startServer() {
 
   app.post("/api/gemini/analyze", async (req, res) => {
     try {
-      const { base64Frame, apiKey } = req.body;
+      const { base64Frame } = req.body;
       if (!base64Frame) return res.status(400).json({ error: "Missing image" });
 
-      const ai = getAI(apiKey);
+      const ai = getAI();
       const mimeType = base64Frame.match(/^data:(image\/\w+);base64,/)?.[1] || "image/png";
       const cleanBase64 = base64Frame.replace(/^data:image\/\w+;base64,/, "");
 
@@ -80,14 +86,14 @@ Tiêu chí: mặt nhìn thẳng, mắt mở, miệng đóng, đủ sáng, không
 
   app.post("/api/gemini/process", async (req, res) => {
     try {
-      const { imageBase64, systemPrompt, model, apiKey, aspectRatio } = req.body;
+      const { imageBase64, systemPrompt, model, aspectRatio } = req.body;
       if (!imageBase64 || !systemPrompt) return res.status(400).json({ error: "Missing data" });
       const safeAspectRatio = ["1:1", "2:3", "3:4"].includes(aspectRatio) ? aspectRatio : undefined;
 
       const targetModel = model || "gemini-3.1-flash-image";
       console.log(`[Gemini Process] Running image generation with model: ${targetModel}`);
 
-      const ai = getAI(apiKey);
+      const ai = getAI();
       const mimeType = imageBase64.match(/^data:(image\/\w+);base64,/)?.[1] || "image/png";
       const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
 
@@ -132,7 +138,7 @@ Tiêu chí: mặt nhìn thẳng, mắt mở, miệng đóng, đủ sáng, không
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: "spa",
     });
     app.use(vite.middlewares);

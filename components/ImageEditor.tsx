@@ -300,10 +300,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
         err.message === "MODEL_NOT_FOUND" ||
         (err.message && err.message.includes("entity was not found"))
       ) {
-        alert("Lỗi kết nối AI (404). Vui lòng chọn lại API Key hợp lệ.");
-        if ((window as any).aistudio?.openSelectKey) {
-          await (window as any).aistudio.openSelectKey();
-        }
+        alert("Lỗi kết nối AI (404). Model AI hiện không khả dụng hoặc chưa được cấu hình.");
       } else if (err.message === "AI_QUOTA_EXCEEDED") {
         alert("Vui lòng thử lại sau.");
       } else {

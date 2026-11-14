@@ -115,7 +115,9 @@ export const DEFAULT_CONFIG: AppConfig = {
 export const LEGACY_GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx_azcS4UUpm8j65Z7Vv50QXY7gUBZ2TlI0zGcGk2571aUR0vY2FqwkiftG83-VLf74/exec";
 
 export const saveConfig = (config: AppConfig) => {
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+  const sanitized = { ...config } as Record<string, unknown>;
+  delete sanitized.geminiApiKey;
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(sanitized));
   applyTheme(config.themeColorHex);
   applyThemeMode(config.themeMode); // Apply mode
   updateFavicon(config.logoUrl);
@@ -128,6 +130,9 @@ export const getConfig = (): AppConfig => {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed === 'object') {
+        delete parsed.geminiApiKey;
+      }
       // Merge items carefully to ensure arrays and photoRules always exist
       config = {
         ...DEFAULT_CONFIG,
